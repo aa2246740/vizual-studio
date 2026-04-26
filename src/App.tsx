@@ -62,10 +62,10 @@ type StoredProject = {
   revisions: Revision[]
 }
 
-const STORAGE_KEY = 'vizual-studio:first-ppt-workspace'
+const STORAGE_KEY = 'vizual-studio:first-ppt-workspace:zh-v2'
 
 const initialDesign: DesignControls = {
-  brandName: 'CMB Strategy Desk',
+  brandName: 'CMB 策略分析台',
   accent: '#c8152d',
   background: '#f7f5f0',
   surface: '#ffffff',
@@ -83,7 +83,7 @@ const initialSlides: Slide[] = [
     layout: 'cover',
     visual: 'kpi',
     status: 'approved',
-    kicker: 'Q1 Business Review',
+    kicker: 'Q1 经营回顾',
     title: '2026 Q1 经营分析汇报',
     body: '面向管理层的业务趋势、风险信号与下一步行动建议。',
     speakerNote: '开场说明：本 deck 展示业务结果、增长质量和行动建议。',
@@ -93,7 +93,7 @@ const initialSlides: Slide[] = [
     layout: 'insight',
     visual: 'line',
     status: 'review',
-    kicker: 'Growth Quality',
+    kicker: '增长质量',
     title: '收入下滑主要来自活跃用户减少',
     body: 'Day 8 后活跃用户下降，同时 ARPPU 上升，说明高价值用户留存但用户规模承压。',
     speakerNote: '强调 ARPPU 上升可能是筛选效应，不能单独证明产品变好。',
@@ -103,7 +103,7 @@ const initialSlides: Slide[] = [
     layout: 'chart',
     visual: 'combo',
     status: 'review',
-    kicker: 'Revenue Trend',
+    kicker: '收入趋势',
     title: '增长率先于收入出现拐点',
     body: '组合图同时呈现收入规模和增长率，帮助识别 Day 5-7 的斜率变化。',
     speakerNote: '提示管理层关注增长率滞后传导到收入的风险。',
@@ -113,7 +113,7 @@ const initialSlides: Slide[] = [
     layout: 'appendix',
     visual: 'table',
     status: 'draft',
-    kicker: 'Appendix',
+    kicker: '附录',
     title: '关键指标明细',
     body: '保留原始指标，方便追溯图表结论和后续导出。',
     speakerNote: '附录用于支撑问答，不一定进入正式汇报。',
@@ -141,13 +141,13 @@ const initialRevisions: Revision[] = [
   {
     id: 'r1',
     target: 'revenue-trend / chart',
-    summary: 'Agent proposal: 将图表切换为双轴组合图，并在 Day 5-7 标注拐点。',
+    summary: 'Agent 修订建议：将图表切换为双轴组合图，并在 Day 5-7 标注拐点。',
     status: 'pending',
   },
   {
     id: 'r2',
     target: 'growth-quality / narrative',
-    summary: 'Agent proposal: 增加“相关不等于因果”的管理层提示。',
+    summary: 'Agent 修订建议：增加“相关不等于因果”的管理层提示。',
     status: 'pending',
   },
 ]
@@ -163,12 +163,34 @@ const revenueData = [
 ]
 
 const journey = [
-  { title: '1. Brief', desc: '输入商业目标、受众、数据口径和限制。' },
+  { title: '1. 需求简报', desc: '输入商业目标、受众、数据口径和限制。' },
   { title: '2. Design.md', desc: '确定品牌语言，一次设置，多处复用。' },
-  { title: '3. Draft Deck', desc: 'Agent 生成 HTML-first 商业 PPT 初稿。' },
-  { title: '4. Review Loop', desc: '用户直接改字、批注局部、让 Agent 修订。' },
-  { title: '5. Export', desc: '导出 HTML / PDF / PNG，PPTX 作为后续适配。' },
+  { title: '3. 生成初稿', desc: 'Agent 生成 HTML 优先的商业 PPT 初稿。' },
+  { title: '4. 批注修订', desc: '用户直接改字、批注局部、让 Agent 修订。' },
+  { title: '5. 导出交付', desc: '导出 HTML / PDF / PNG；PPTX 作为后续适配。' },
 ]
+
+const statusLabels: Record<SlideStatus | Revision['status'], string> = {
+  draft: '草稿',
+  review: '待审',
+  approved: '已确认',
+  pending: '待处理',
+  accepted: '已接受',
+  rejected: '已拒绝',
+}
+
+const visualLabels: Record<SlideVisual, string> = {
+  kpi: 'KPI 看板',
+  combo: '组合图',
+  line: '折线图',
+  table: '数据表',
+}
+
+const agentPresetLabels = {
+  line: '改成折线趋势页',
+  executive: '加管理层结论',
+  dense: '变成明细附录',
+}
 
 function buildDesignMd(controls: DesignControls) {
   const shadowText =
@@ -423,7 +445,7 @@ function App() {
     try {
       const theme = loadDesignMd(designMd, { name: 'vizual-studio-preview', register: false })
       return {
-        status: `Theme applied: vizual-studio-live`,
+        status: '主题已应用：vizual-studio-live',
         mapping: getMappingSummary(theme.name, theme._mappingReport),
       }
     } catch (error) {
@@ -495,7 +517,7 @@ function App() {
       {
         id: `r${current.length + 1}`,
         target: `${activeSlide.id} / ${kind}`,
-        summary: `Agent action applied: ${kind}. A revision record was created for audit.`,
+        summary: `Agent 动作已应用：${agentPresetLabels[kind]}。已生成一条可审计的修订记录。`,
         status: 'accepted',
       },
       ...current,
@@ -533,24 +555,24 @@ function App() {
           <span className="brand-mark">V</span>
           <div>
             <strong>Vizual Studio</strong>
-            <span>HTML-first business PPT</span>
+            <span>中文默认 · HTML 商业 PPT</span>
           </div>
         </div>
 
         <nav className="nav">
           <button className={mode === 'deck' ? 'active' : ''} onClick={() => setMode('deck')} type="button">
-            Deck Studio
+            PPT 工作台
           </button>
           <button className={mode === 'theme' ? 'active' : ''} onClick={() => setMode('theme')} type="button">
             Design.md
           </button>
           <button className={mode === 'review' ? 'active' : ''} onClick={() => setMode('review')} type="button">
-            Review Loop
+            批注修订
           </button>
         </nav>
 
         <div className="journey-card">
-          <p className="eyebrow">User Journey</p>
+          <p className="eyebrow">用户旅程</p>
           {journey.map((step) => (
             <div className="journey-step" key={step.title}>
               <strong>{step.title}</strong>
@@ -560,23 +582,23 @@ function App() {
         </div>
 
         <div className="runtime-card">
-          <span>Runtime Boundary</span>
+          <span>运行时边界</span>
           <strong>Vizual Core + Studio App</strong>
-          <p>Core renders specs, themes, DocView, liveControl, and exports. Studio owns deck UX, review flow, and product state.</p>
+          <p>Core 负责渲染规格、主题、DocView、liveControl 和导出；Studio 负责 PPT 体验、批注修订和产品状态。</p>
         </div>
       </aside>
 
       <main className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Official app layer on top of Vizual</p>
+            <p className="eyebrow">Vizual 官方应用层</p>
             <h1>{mode === 'deck' ? '商业 HTML PPT 工作台' : mode === 'theme' ? 'Design.md 品牌底座' : '批注与修订循环'}</h1>
           </div>
           <div className="status-stack">
             <span className="status">{themePreview.status}</span>
             {themePreview.mapping && (
               <span className="status quiet">
-                mapped {themePreview.mapping.mapped}/{themePreview.mapping.total || '-'} · fallback {themePreview.mapping.fallback}
+                已映射 {themePreview.mapping.mapped}/{themePreview.mapping.total || '-'} · 回退 {themePreview.mapping.fallback}
               </span>
             )}
           </div>
@@ -586,8 +608,8 @@ function App() {
           <section className="deck-layout">
             <div className="panel slide-list-panel">
               <div className="panel-header">
-                <h2>Deck Outline</h2>
-                <p>每一页都是可定位、可批注、可由 Agent patch 的 artifact 节点。</p>
+                <h2>PPT 大纲</h2>
+                <p>每一页都是可定位、可批注、可由 Agent 修订的产物节点。</p>
               </div>
               <div className="slide-list">
                 {slides.map((slide, index) => (
@@ -599,7 +621,7 @@ function App() {
                   >
                     <span>{String(index + 1).padStart(2, '0')}</span>
                     <strong>{slide.title}</strong>
-                    <small>{slide.status}</small>
+                    <small>{statusLabels[slide.status]}</small>
                   </button>
                 ))}
               </div>
@@ -632,15 +654,15 @@ function App() {
                 )}
                 <footer>
                   <span>{designControls.brandName}</span>
-                  <span>{activeSlide.status}</span>
+                  <span>{statusLabels[activeSlide.status]}</span>
                 </footer>
               </div>
             </div>
 
             <div className="panel inspector-panel">
               <div className="panel-header">
-                <h2>AI Controls</h2>
-                <p>这里模拟 Agent 常见动作。真实接入时由 Agent 生成 patch 或调用 Studio SDK。</p>
+                <h2>AI 控制</h2>
+                <p>这里模拟 Agent 常见动作。真实接入时由 Agent 生成修订或调用 Studio SDK。</p>
               </div>
               <div className="button-grid">
                 <button type="button" onClick={() => applyAgentPreset('line')}>
@@ -655,11 +677,11 @@ function App() {
               </div>
 
               <label>
-                Slide title
+                幻灯片标题
                 <input value={activeSlide.title} onChange={(event) => updateSlide(activeSlide.id, { title: event.target.value })} />
               </label>
               <label>
-                Narrative
+                正文叙述
                 <textarea
                   value={activeSlide.body}
                   onChange={(event) => updateSlide(activeSlide.id, { body: event.target.value })}
@@ -667,19 +689,19 @@ function App() {
                 />
               </label>
               <label>
-                Visual block
+                可视化模块
                 <select
                   value={activeSlide.visual}
                   onChange={(event) => updateSlide(activeSlide.id, { visual: event.target.value as SlideVisual })}
                 >
-                  <option value="kpi">KPI dashboard</option>
-                  <option value="combo">Combo chart</option>
-                  <option value="line">Line chart</option>
-                  <option value="table">Data table</option>
+                  <option value="kpi">{visualLabels.kpi}</option>
+                  <option value="combo">{visualLabels.combo}</option>
+                  <option value="line">{visualLabels.line}</option>
+                  <option value="table">{visualLabels.table}</option>
                 </select>
               </label>
               <label>
-                Speaker note
+                演讲备注
                 <textarea
                   value={activeSlide.speakerNote}
                   onChange={(event) => updateSlide(activeSlide.id, { speakerNote: event.target.value })}
@@ -703,20 +725,20 @@ function App() {
           <section className="theme-layout">
             <div className="panel controls-panel">
               <div className="panel-header">
-                <h2>Design.md liveControl</h2>
+                <h2>Design.md 实时控制</h2>
                 <p>第一版先覆盖商业 deck 最关键的品牌参数，后续扩展到完整 token 矩阵。</p>
               </div>
               <label>
-                Brand name
+                品牌名称
                 <input value={designControls.brandName} onChange={(event) => updateControl('brandName', event.target.value)} />
               </label>
               <div className="color-grid">
                 <label>
-                  Accent
+                  品牌主色
                   <input type="color" value={designControls.accent} onChange={(event) => updateControl('accent', event.target.value)} />
                 </label>
                 <label>
-                  Background
+                  背景色
                   <input
                     type="color"
                     value={designControls.background}
@@ -724,11 +746,11 @@ function App() {
                   />
                 </label>
                 <label>
-                  Surface
+                  表面色
                   <input type="color" value={designControls.surface} onChange={(event) => updateControl('surface', event.target.value)} />
                 </label>
                 <label>
-                  Text
+                  文本色
                   <input type="color" value={designControls.text} onChange={(event) => updateControl('text', event.target.value)} />
                 </label>
               </div>
@@ -743,45 +765,45 @@ function App() {
                 />
               </label>
               <label>
-                Density
+                信息密度
                 <select
                   value={designControls.density}
                   onChange={(event) => updateControl('density', event.target.value as DesignControls['density'])}
                 >
-                  <option value="executive">Executive</option>
-                  <option value="analytical">Analytical</option>
-                  <option value="board">Board</option>
+                  <option value="executive">高管汇报</option>
+                  <option value="analytical">分析明细</option>
+                  <option value="board">董事会</option>
                 </select>
               </label>
               <label>
-                Motion
+                动效强度
                 <select value={designControls.motion} onChange={(event) => updateControl('motion', event.target.value as DesignControls['motion'])}>
-                  <option value="none">None</option>
-                  <option value="subtle">Subtle</option>
-                  <option value="cinematic">Cinematic</option>
+                  <option value="none">无动效</option>
+                  <option value="subtle">克制动效</option>
+                  <option value="cinematic">演示级动效</option>
                 </select>
               </label>
               <label>
-                Shadow
+                阴影
                 <select value={designControls.shadow} onChange={(event) => updateControl('shadow', event.target.value as DesignControls['shadow'])}>
-                  <option value="none">None</option>
-                  <option value="soft">Soft</option>
-                  <option value="strong">Strong</option>
+                  <option value="none">无阴影</option>
+                  <option value="soft">柔和</option>
+                  <option value="strong">强调</option>
                 </select>
               </label>
             </div>
 
             <div className="panel design-editor-panel">
               <div className="panel-header">
-                <h2>Standard Design.md</h2>
-                <p>Runtime 只保证标准 Design.md 的确定性解析；非标准品牌描述应由 Agent parser 先归一化。</p>
+                <h2>标准 Design.md</h2>
+                <p>运行时只保证标准 Design.md 的确定性解析；非标准品牌描述应由 Agent parser 先归一化。</p>
               </div>
               <textarea value={designMd} onChange={(event) => setDesignMd(event.target.value)} rows={28} />
             </div>
 
             <div className="panel preview-panel">
               <div className="panel-header">
-                <h2>Vizual Theme Preview</h2>
+                <h2>Vizual 主题预览</h2>
                 <p>预览直接走 VizualRenderer，用真实组件验证主题覆盖。</p>
               </div>
               <VizualRenderer spec={buildVizualSpec(slides[1])} />
@@ -793,11 +815,11 @@ function App() {
           <section className="review-layout">
             <div className="panel">
               <div className="panel-header">
-                <h2>Comments</h2>
+                <h2>批注</h2>
                 <p>目标是把 Codex/DocView 式的批注循环变成 Studio 的通用协作模型。</p>
               </div>
               <label>
-                Add comment to current slide
+                给当前页添加批注
                 <textarea value={newComment} onChange={(event) => setNewComment(event.target.value)} rows={4} />
               </label>
               <button className="primary-action" type="button" onClick={addComment}>
@@ -825,7 +847,7 @@ function App() {
 
             <div className="panel">
               <div className="panel-header">
-                <h2>Revision Queue</h2>
+                <h2>修订队列</h2>
                 <p>Agent 每次修订都应该变成可审计的 proposal，而不是悄悄覆盖页面。</p>
               </div>
               <div className="revision-list">
@@ -835,13 +857,13 @@ function App() {
                     <p>{revision.summary}</p>
                     <div>
                       <button type="button" onClick={() => setRevisionStatus(revision.id, 'accepted')}>
-                        Accept
+                        接受
                       </button>
                       <button type="button" onClick={() => setRevisionStatus(revision.id, 'rejected')}>
-                        Reject
+                        拒绝
                       </button>
                     </div>
-                    <strong>{revision.status}</strong>
+                    <strong>{statusLabels[revision.status]}</strong>
                   </article>
                 ))}
               </div>
@@ -849,7 +871,7 @@ function App() {
 
             <div className="panel">
               <div className="panel-header">
-                <h2>Claude Design Lessons</h2>
+                <h2>Claude Design 借鉴点</h2>
                 <p>已经内化到 Studio 第一版的关键模式。</p>
               </div>
               <div className="lesson-list">
@@ -862,15 +884,15 @@ function App() {
               <div className="metric-row">
                 <div>
                   <strong>{slides.length}</strong>
-                  <span>slides</span>
+                  <span>页幻灯片</span>
                 </div>
                 <div>
                   <strong>{openComments.length}</strong>
-                  <span>open comments</span>
+                  <span>条未完成批注</span>
                 </div>
                 <div>
                   <strong>{revisions.length}</strong>
-                  <span>revisions</span>
+                  <span>次修订</span>
                 </div>
               </div>
             </div>

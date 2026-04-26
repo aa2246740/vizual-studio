@@ -2,7 +2,7 @@
   "name": "vizual-studio",
   "private": true,
   "version": "0.1.0",
-  "description": "Official application layer for Vizual: HTML-first business deck studio with Design.md, Vizual blocks, and AI-assisted review workflow.",
+  "description": "Vizual 官方应用层：面向商业 HTML PPT 的 Studio，支持 Design.md、Vizual blocks 和 AI 批注修订流程。",
   "type": "module",
   "scripts": {
     "dev": "vite",
