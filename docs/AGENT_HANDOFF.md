@@ -107,11 +107,22 @@ npm run dev -- --host 127.0.0.1 --port 4174
   vizual-studio/
 ```
 
-## 下一步优先级
+## 当前状态
 
-1. 完善 Deck MVP：加/删/复制/拖拽 slide。
-2. 完善 full deck print/PDF。
-3. 做正式 Agent action SDK。
-4. 做 block-level targetMap。
-5. 做真实 comment selection 和 revision diff。
-6. 再考虑 Hyperframes/motion。
+Core 已经回到 `aa2246740/vizual` main，并支持 GitHub dependency install。Studio 继续作为独立仓库开发，依赖远端 Core，不再使用 `file:../vizual`。
+
+当前 Studio 已有：
+
+1. 中文首页：模板入口、最近项目、快速开始。
+2. PPT 编辑器：左侧页面缩略图、中央 16:9 画布、右侧 Agent 协作。
+3. 品牌风格页：普通用户语言的风格控制，不直接暴露 `.md` 术语。
+4. 微调：文字框宽度、字号、换行约束、图表类型/高度、图片风格/裁剪感、整页品牌参数。
+5. 浏览器 Agent bridge：`window.VizualStudio.snapshot()` / `applyAgentAction()` / `addAgentMessage()`。
+
+下一步继续：
+
+1. 用 Core generic Review/Revision 替换 Studio 内部临时批注状态。
+2. 用 Core Agent Bridge 替换临时 `window.VizualStudio` 状态拼装。
+3. 完善 Deck MVP：复制、删除、拖拽 slide。
+4. 完善 full deck print/PDF 和 HTML handoff。
+5. 研究 Hyperframes/motion。

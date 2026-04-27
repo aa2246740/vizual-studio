@@ -36,23 +36,9 @@ Vizual Studio 是上层应用：
 
 ## 本地开发
 
-当前使用 sibling local dependency：
+Studio 是独立仓库，不使用本地 `file:../vizual`。当前通过 GitHub 依赖锁定到已验证的 Vizual Core 提交，保证 Studio 和 Core 项目隔离。
 
-```bash
-/Users/wu/Documents/New project/
-  vizual/
-  vizual-studio/
-```
-
-先确保 `vizual` 已构建：
-
-```bash
-cd "/Users/wu/Documents/New project/vizual"
-npm install
-npm run build
-```
-
-然后启动 Studio：
+启动 Studio：
 
 ```bash
 cd "/Users/wu/Documents/New project/vizual-studio"
@@ -106,3 +92,5 @@ npm run build
 - `docs/AGENT_HANDOFF.md`
 - `docs/CLAUDE_DESIGN_RESEARCH.md`
 - `docs/HYPERFRAMES_RESEARCH.md`
+- `docs/STUDIO_HANDOFF.md`
+- `docs/REFERENCE_ARCHIVE.md`

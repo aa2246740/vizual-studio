@@ -13,7 +13,7 @@
   "dependencies": {
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "vizual": "file:../vizual"
+    "vizual": "github:aa2246740/vizual#cc6279e6f38431ebe5217fb4e2d8b1e615220ac9"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
