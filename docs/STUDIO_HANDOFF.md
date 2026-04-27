@@ -18,21 +18,21 @@ Vizual Studio 是面向内部种子用户的 AI 协作式商业 PPT 平台。它
 - Draw / Click 模式：画布标注、底部说明输入、Queue 批量提交给 Agent。
 - 图片占位块：支持风格、缩放和横向裁剪感微调。
 - VizualRenderer 嵌入 KPI、图表、表格。
-- 设计风格页：用普通用户语言调整设计主色、背景、版面、文字、圆角、密度和动效，内部基于 `loadDesignMd()` 应用到 Vizual runtime。
+- 设计风格库：用普通用户语言管理多套可复用设计风格，支持创建、复制、删除、切换和绑定到当前 PPT；内部基于 `loadDesignMd()` 应用到 Vizual runtime。
 - 基础 liveControl：当前选中对象拥有 Typography / Size / Box 属性面板，图表和图片有专属展示参数。
-- 批注/修订雏形：用户提交目标化修改，Agent 可通过 `window.VizualStudio.applyAgentAction()` 写回。
+- 批注/修订闭环第一版：用户提交目标化修改，Agent 先生成可审阅修订提案，用户接受后才写回画布。
+- 稳定目标引用第一版：页面、标题、正文、图表、图片会进入 `targetRef`，供浏览器 Agent 读取和追踪。
 - 本地 `localStorage` 保存项目状态。
-- HTML handoff 与浏览器打印/PDF 的基础出口。
 - 依赖远端 Vizual Core GitHub 提交，不使用本地 `file:../vizual`。
 
 ## 明确未做
 
 - 项目中心、团队空间、搜索、权限、分享还未做成完整工作流。
-- 设计风格导入/导出、完整 token matrix、风格版本库尚未完整产品化。
-- 真正的 block-level target map：当前对象定位还偏 UI 状态，不是稳定 artifact target。
-- 完整批注循环：需要和 Core 的 generic Review/Revision 协议对齐。
+- 设计风格导入/导出、完整 token matrix、风格版本历史尚未完整产品化。
+- 更细粒度 block-level target map：当前稳定到页面对象级，尚未到文本选区、图表数据点、表格单元格。
+- 完整批注循环：当前是 Studio 内第一版协议，后续需要和 Core 的 generic Review/Revision 协议对齐。
 - 完整版本历史和可回滚 diff。
-- 高质量全 deck PDF/PNG/HTML bundle 导出仍需专门做。
+- 高质量全 deck PDF/PNG/HTML bundle 导出暂缓，当前阶段不做。
 - PPTX 导出暂缓。
 - Hyperframes/motion 暂不集成。
 

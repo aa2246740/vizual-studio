@@ -7,6 +7,13 @@
 - 本地路径：`/Users/wu/Downloads/Claude-Design-Sys-Prompt.txt`
 - 用途：理解 Claude Design 的工作流、批注、direct edit、tweak、design system、export/handoff 思路。
 - 使用方式：只吸收方法论，例如“持久画布 + 对话 + 精确目标批注 + 可调参数 + 导出闭环”。
+- 已吸收进 Studio 的原则：
+  - HTML 是演示内容的源格式，但产品要表现为面向普通用户的创作工具。
+  - 画布对象需要稳定标签和目标引用，方便用户批注后 Agent 精确定位。
+  - 页面/幻灯片应使用 1-based 编号和用户可读标签，避免 Agent 把第 5 页理解成数组下标。
+  - 用户可直接编辑文本，也可通过 Draw/Click/Comment 把修改请求交给 Agent。
+  - 重大修改应保留旧状态并生成可审阅修订，而不是静默覆盖。
+  - 设计风格是项目上下文，不能每次靠 prompt 重新描述。
 - 风险：逆向提示词不应复制进仓库、skill 或产品文档。后续只能写自己的协议和实现。
 
 ## Huashu Design
@@ -66,4 +73,3 @@
 - `docs/CORE_GAPS.md`
 
 这些文档保留当前理解。Core 完善后再回到 Studio 时，需要先读 `STUDIO_HANDOFF.md` 和本归档，再继续产品化。
-

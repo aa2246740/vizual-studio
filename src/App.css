@@ -1146,6 +1146,18 @@ input[type='color'] {
   margin-bottom: 20px;
 }
 
+.style-library-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.style-library-actions button {
+  min-width: 0;
+  padding-inline: 8px;
+}
+
 .style-preset-list button {
   width: 100%;
   display: grid;
@@ -1177,6 +1189,41 @@ input[type='color'] {
   color: var(--studio-muted);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.style-preset-list em {
+  display: inline-block;
+  margin-top: 7px;
+  border: 1px solid var(--studio-border);
+  border-radius: 99px;
+  padding: 2px 7px;
+  color: var(--studio-accent);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 750;
+}
+
+.preset-shortcuts {
+  margin: 0 0 18px;
+  border: 1px solid var(--studio-border);
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: color-mix(in srgb, var(--studio-bg) 55%, var(--studio-surface));
+}
+
+.preset-shortcuts span {
+  width: 100%;
+  color: var(--studio-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.preset-shortcuts button {
+  padding: 7px 9px;
+  font-size: 12px;
 }
 
 .color-grid {

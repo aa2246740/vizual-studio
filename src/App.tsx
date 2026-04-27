@@ -45,6 +45,15 @@ type DesignControls = {
   motion: 'none' | 'subtle' | 'cinematic'
 }
 
+type DesignStyle = {
+  id: string
+  title: string
+  description: string
+  source: 'preset' | 'custom' | 'agent'
+  updatedAt: string
+  controls: DesignControls
+}
+
 type SlideLayout = 'cover' | 'insight' | 'chart' | 'appendix'
 type SlideVisual = 'kpi' | 'combo' | 'line' | 'table'
 type SlideStatus = 'draft' | 'review' | 'approved'
@@ -76,6 +85,7 @@ type Slide = {
 type ReviewComment = {
   id: string
   slideId: string
+  targetRef: string
   target: SelectedTarget
   request: string
   status: 'open' | 'resolved'
@@ -86,10 +96,25 @@ type ReviewComment = {
 type AnnotationTask = {
   id: string
   slideId: string
+  targetRef: string
   target: SelectedTarget
   mode: 'draw' | 'click'
   instruction: string
   bbox?: DrawRect
+}
+
+type BlockTarget = {
+  id: string
+  slideId: string
+  target: SelectedTarget
+  label: string
+  stableRef: string
+}
+
+type RevisionPatch = {
+  slideId?: string
+  slide?: Partial<Slide>
+  design?: Partial<DesignControls>
 }
 
 type Revision = {
@@ -97,6 +122,9 @@ type Revision = {
   target: string
   summary: string
   status: 'pending' | 'accepted' | 'rejected'
+  sourceCommentId?: string
+  patch?: RevisionPatch
+  createdAt?: string
 }
 
 type AgentMessage = {
@@ -108,7 +136,9 @@ type AgentMessage = {
 type StoredProject = {
   view: AppView
   projectTitle: string
-  designControls: DesignControls
+  designControls?: DesignControls
+  designStyles?: DesignStyle[]
+  activeDesignStyleId?: string
   slides: Slide[]
   comments: ReviewComment[]
   revisions: Revision[]
@@ -122,7 +152,7 @@ type StudioAgentAction =
   | { type: 'updateSlide'; slideId?: string; patch: Partial<Slide>; summary?: string }
   | { type: 'replaceVisual'; slideId?: string; visual: SlideVisual; summary?: string }
   | { type: 'applyBrand'; patch: Partial<DesignControls>; summary?: string }
-  | { type: 'applyDesignStyle'; patch: Partial<DesignControls>; summary?: string }
+  | { type: 'applyDesignStyle'; patch?: Partial<DesignControls>; styleId?: string; summary?: string }
   | { type: 'addRevision'; target?: string; summary: string }
   | { type: 'resolveComment'; commentId: string; summary?: string }
   | { type: 'addAgentMessage'; text: string }
@@ -140,7 +170,10 @@ declare global {
         comments: ReviewComment[]
         revisions: Revision[]
         annotationQueue: AnnotationTask[]
+        targetRefs: BlockTarget[]
         designControls: DesignControls
+        designStyles: DesignStyle[]
+        activeDesignStyleId: string
         mappingReport?: ThemeMappingReport
       }
       getOpenComments: () => ReviewComment[]
@@ -153,6 +186,12 @@ declare global {
 }
 
 const STORAGE_KEY = 'vizual-studio:ppt-product-zh-v6'
+let idCounter = 0
+
+function createId(prefix: string) {
+  idCounter += 1
+  return `${prefix}${idCounter}`
+}
 
 const initialDesign: DesignControls = {
   styleName: '招商经营分析',
@@ -279,6 +318,7 @@ const initialComments: ReviewComment[] = [
   {
     id: 'c1',
     slideId: 'growth-quality',
+    targetRef: targetRefFor('growth-quality', '正文'),
     target: '正文',
     request: '把“筛选效应”和“不能直接因果归因”讲得更明确。',
     status: 'open',
@@ -286,6 +326,7 @@ const initialComments: ReviewComment[] = [
   {
     id: 'c2',
     slideId: 'revenue-trend',
+    targetRef: targetRefFor('revenue-trend', '图表'),
     target: '图表',
     request: '把增长率线条强调出来，方便领导一眼看到拐点。',
     status: 'open',
@@ -298,6 +339,8 @@ const initialRevisions: Revision[] = [
     target: 'revenue-trend / 图表',
     summary: 'Agent 建议将图表切换为双轴组合图，并在 Day 5-7 标注拐点。',
     status: 'pending',
+    patch: { slideId: 'revenue-trend', slide: { visual: 'combo', visualHeight: 320, status: 'review' } },
+    createdAt: 'demo-seed',
   },
 ]
 
@@ -439,6 +482,80 @@ function normalizeDesignControls(input?: (Partial<DesignControls> & { brandName?
     ...input,
     styleName: input.styleName ?? input.brandName ?? initialDesign.styleName,
   }
+}
+
+function presetToDesignStyle(
+  preset: { id: string; title: string; description: string; controls: DesignControls },
+  source: DesignStyle['source'] = 'preset',
+): DesignStyle {
+  return {
+    id: preset.id,
+    title: preset.title,
+    description: preset.description,
+    source,
+    updatedAt: 'preset',
+    controls: normalizeDesignControls(preset.controls),
+  }
+}
+
+function normalizeDesignStyle(input: Partial<DesignStyle>, index: number): DesignStyle {
+  const controls = normalizeDesignControls(input.controls ?? (input as Partial<DesignControls> & { brandName?: string }))
+  return {
+    id: input.id || `style-${index + 1}`,
+    title: input.title || controls.styleName || `设计风格 ${index + 1}`,
+    description: input.description || '从项目数据恢复的设计风格。',
+    source: input.source ?? 'custom',
+    updatedAt: input.updatedAt || new Date().toISOString(),
+    controls,
+  }
+}
+
+function normalizeDesignStyles(input?: DesignStyle[] | null, fallbackControls?: Partial<DesignControls> | null): DesignStyle[] {
+  if (input?.length) {
+    return input.map((style, index) => normalizeDesignStyle(style, index))
+  }
+
+  const presets = designPresets.map((preset) => presetToDesignStyle(preset))
+  if (!fallbackControls) return presets
+
+  const fallback = normalizeDesignControls(fallbackControls)
+  const exists = presets.some((style) => style.controls.styleName === fallback.styleName && style.controls.accent === fallback.accent)
+  if (exists) return presets
+
+  return [
+    {
+      id: 'restored',
+      title: fallback.styleName,
+      description: '从历史项目恢复的当前设计风格。',
+      source: 'custom',
+      updatedAt: new Date().toISOString(),
+      controls: fallback,
+    },
+    ...presets,
+  ]
+}
+
+function targetRefFor(slideId: string, target: SelectedTarget) {
+  return `${slideId}:${targetToStyleKey(target)}`
+}
+
+function buildTargetRefs(slide: Slide): BlockTarget[] {
+  const targets: SelectedTarget[] = ['整页', '标题', '正文', '图表', '图片']
+  return targets.map((target) => ({
+    id: targetRefFor(slide.id, target),
+    slideId: slide.id,
+    target,
+    label: `${slide.title.replace(/\s+/g, ' ').slice(0, 18)} · ${target}`,
+    stableRef: targetRefFor(slide.id, target),
+  }))
+}
+
+function normalizeComments(input?: ReviewComment[] | null): ReviewComment[] {
+  if (!input?.length) return initialComments
+  return input.map((comment) => ({
+    ...comment,
+    targetRef: comment.targetRef || targetRefFor(comment.slideId, comment.target),
+  }))
 }
 
 function targetToStyleKey(target: SelectedTarget): StyleTargetKey {
@@ -652,61 +769,6 @@ function buildVizualSpec(slide: Slide): VizualSpec {
   }
 }
 
-function createStandaloneHtml(slides: Slide[], brandGuide: string, controls: DesignControls, projectTitle: string) {
-  const renderedSlides = slides
-    .map(
-      (slide, index) => `
-        <section class="slide">
-          <p class="kicker">${String(index + 1).padStart(2, '0')} / ${slide.kicker}</p>
-          <h1>${escapeHtml(slide.title)}</h1>
-          <p>${escapeHtml(slide.body)}</p>
-          <footer>${escapeHtml(slide.speakerNote)}</footer>
-        </section>`,
-    )
-    .join('\n')
-
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(projectTitle)}</title>
-  <style>
-    body { margin: 0; background: ${controls.background}; font-family: Inter, "Microsoft YaHei", system-ui, sans-serif; color: ${controls.text}; }
-    .slide { width: min(1280px, 100vw); aspect-ratio: 16 / 9; margin: 0 auto 24px; padding: 56px; background: ${controls.surface}; box-sizing: border-box; display: flex; flex-direction: column; }
-    .kicker { color: ${controls.accent}; text-transform: uppercase; font-size: 12px; font-weight: 800; }
-    h1 { max-width: 900px; font-size: 56px; line-height: 1; white-space: pre-wrap; margin: 24px 0; }
-    p { max-width: 760px; font-size: 22px; line-height: 1.45; }
-    footer { margin-top: auto; color: ${controls.muted}; font-size: 13px; }
-  </style>
-</head>
-<body>
-  <!-- Design style source:
-${escapeHtml(brandGuide)}
-  -->
-${renderedSlides}
-</body>
-</html>`
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
-
-function downloadText(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
 function patchSlidesForTemplate(templateId: string): { title: string; slides: Slide[] } {
   const template = templates.find((item) => item.id === templateId) ?? templates[0]
   const titleMap: Record<string, string> = {
@@ -730,14 +792,21 @@ function patchSlidesForTemplate(templateId: string): { title: string; slides: Sl
 
 function App() {
   const stored = useMemo(() => loadStoredProject(), [])
+  const initialDesignState = useMemo(() => {
+    const styles = normalizeDesignStyles(stored.designStyles, stored.designControls)
+    const activeId =
+      stored.activeDesignStyleId && styles.some((style) => style.id === stored.activeDesignStyleId)
+        ? stored.activeDesignStyleId
+        : styles[0].id
+    return { styles, activeId }
+  }, [stored.activeDesignStyleId, stored.designControls, stored.designStyles])
   const [view, setView] = useState<AppView>(stored.view ?? 'home')
   const [agentTab, setAgentTab] = useState<AgentTab>('chat')
   const [projectTitle, setProjectTitle] = useState(stored.projectTitle ?? '2026 Q1 经营分析汇报')
-  const [designControls, setDesignControls] = useState(() =>
-    normalizeDesignControls(stored.designControls as Partial<DesignControls> & { brandName?: string }),
-  )
+  const [designStyles, setDesignStyles] = useState<DesignStyle[]>(initialDesignState.styles)
+  const [activeDesignStyleId, setActiveDesignStyleId] = useState(initialDesignState.activeId)
   const [slides, setSlides] = useState(stored.slides ?? initialSlides)
-  const [comments, setComments] = useState(stored.comments ?? initialComments)
+  const [comments, setComments] = useState(() => normalizeComments(stored.comments))
   const [revisions, setRevisions] = useState(stored.revisions ?? initialRevisions)
   const [agentMessages, setAgentMessages] = useState(stored.agentMessages ?? initialAgentMessages)
   const [annotationQueue, setAnnotationQueue] = useState<AnnotationTask[]>(stored.annotationQueue ?? [])
@@ -751,6 +820,11 @@ function App() {
   const [homePrompt, setHomePrompt] = useState('')
 
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? slides[0]
+  const activeSlideIndex = Math.max(0, slides.findIndex((slide) => slide.id === activeSlide.id))
+  const activeDesignStyle = designStyles.find((style) => style.id === activeDesignStyleId) ?? designStyles[0] ?? presetToDesignStyle(designPresets[0])
+  const designControls = activeDesignStyle.controls
+  const targetRefs = useMemo(() => slides.flatMap((slide) => buildTargetRefs(slide)), [slides])
+  const activeScreenLabel = `${String(activeSlideIndex + 1).padStart(2, '0')} ${activeSlide.title.replace(/\s+/g, ' ').slice(0, 42)}`
   const activeSpec = useMemo(() => buildVizualSpec(activeSlide), [activeSlide])
   const selectedStyle = useMemo(
     () => resolveElementStyle(activeSlide, selectedTarget, designControls),
@@ -777,8 +851,89 @@ function App() {
     setSlides((current) => current.map((slide) => (slide.id === id ? { ...slide, ...patch } : slide)))
   }
 
+  function updateActiveDesignStyle(patch: Partial<DesignStyle>) {
+    setDesignStyles((current) =>
+      current.map((style) =>
+        style.id === activeDesignStyleId
+          ? {
+              ...style,
+              ...patch,
+              updatedAt: new Date().toISOString(),
+            }
+          : style,
+      ),
+    )
+  }
+
+  function updateActiveDesignControls(patch: Partial<DesignControls>) {
+    setDesignStyles((current) =>
+      current.map((style) =>
+        style.id === activeDesignStyleId
+          ? {
+              ...style,
+              title: patch.styleName ?? style.title,
+              updatedAt: new Date().toISOString(),
+              controls: { ...style.controls, ...patch },
+            }
+          : style,
+      ),
+    )
+  }
+
   function updateControl<K extends keyof DesignControls>(key: K, value: DesignControls[K]) {
-    setDesignControls((current) => ({ ...current, [key]: value }))
+    updateActiveDesignControls({ [key]: value } as Partial<DesignControls>)
+  }
+
+  function createDesignStyleFromCurrent() {
+    const id = createId('style-')
+    const next: DesignStyle = {
+      id,
+      title: '新的设计风格',
+      description: '基于当前 PPT 风格创建，可继续通过手动控件或 AI 调整。',
+      source: 'custom',
+      updatedAt: new Date().toISOString(),
+      controls: {
+        ...designControls,
+        styleName: '新的设计风格',
+      },
+    }
+    setDesignStyles((current) => [next, ...current])
+    setActiveDesignStyleId(id)
+    addRevision('已创建一套新的设计风格，并绑定到当前 PPT。', '设计风格', 'accepted')
+  }
+
+  function duplicateDesignStyle() {
+    const id = createId('style-')
+    const next: DesignStyle = {
+      ...activeDesignStyle,
+      id,
+      title: `${activeDesignStyle.title} 副本`,
+      description: activeDesignStyle.description || '复制当前设计风格后继续调整。',
+      source: 'custom',
+      updatedAt: new Date().toISOString(),
+      controls: {
+        ...designControls,
+        styleName: `${designControls.styleName} 副本`,
+      },
+    }
+    setDesignStyles((current) => [next, ...current])
+    setActiveDesignStyleId(id)
+    addRevision(`已复制「${activeDesignStyle.title}」并绑定到当前 PPT。`, '设计风格', 'accepted')
+  }
+
+  function deleteActiveDesignStyle() {
+    if (designStyles.length <= 1) return
+    const remaining = designStyles.filter((style) => style.id !== activeDesignStyleId)
+    setDesignStyles(remaining)
+    setActiveDesignStyleId(remaining[0].id)
+    addRevision(`已删除「${activeDesignStyle.title}」，当前 PPT 改用「${remaining[0].title}」。`, '设计风格', 'accepted')
+  }
+
+  function activateDesignStyle(id: string) {
+    const style = designStyles.find((item) => item.id === id)
+    if (!style) return
+    setActiveDesignStyleId(id)
+    addRevision(`当前 PPT 已套用「${style.title}」设计风格。`, '设计风格', 'accepted')
   }
 
   function updateElementStyle(target: SelectedTarget, patch: Partial<ElementStyle>) {
@@ -843,8 +998,9 @@ function App() {
     const instruction = annotationDraft.trim()
     if (!instruction) return
     const task: AnnotationTask = {
-      id: `a${Date.now()}`,
+      id: createId('a'),
       slideId: activeSlide.id,
+      targetRef: targetRefFor(activeSlide.id, canvasMode === 'draw' ? '手绘区域' : selectedTarget),
       target: canvasMode === 'draw' ? '手绘区域' : selectedTarget,
       mode: canvasMode === 'draw' ? 'draw' : 'click',
       instruction,
@@ -858,8 +1014,9 @@ function App() {
   function sendAnnotationQueue() {
     if (!annotationQueue.length) return
     const queuedComments: ReviewComment[] = annotationQueue.map((task) => ({
-      id: `c${Date.now()}-${task.id}`,
+      id: `${createId('c')}-${task.id}`,
       slideId: task.slideId,
+      targetRef: task.targetRef,
       target: task.target,
       request: task.instruction,
       status: 'open',
@@ -870,12 +1027,12 @@ function App() {
     setAgentMessages((current) => [
       ...current,
       {
-        id: `m${Date.now()}`,
+        id: createId('m'),
         role: 'user',
         text: `提交了 ${queuedComments.length} 条画布标注，请按目标逐条生成修订建议。`,
       },
       {
-        id: `m${Date.now() + 1}`,
+        id: createId('m'),
         role: 'agent',
         text: '已收到标注队列。每条标注都包含页面、目标、框选范围和说明，我会把它们作为可审阅修订处理。',
       },
@@ -887,7 +1044,7 @@ function App() {
   function addRevision(summary: string, target = `${activeSlide.id} / ${selectedTarget}`, status: Revision['status'] = 'pending') {
     setRevisions((current) => [
       {
-        id: `r${Date.now()}`,
+        id: createId('r'),
         target,
         summary,
         status,
@@ -904,7 +1061,7 @@ function App() {
     setAnnotationQueue([])
     setRevisions([
       {
-        id: `r${Date.now()}`,
+        id: createId('r'),
         target: '整份演示',
         summary: `已从「${templates.find((item) => item.id === templateId)?.title ?? '模板'}」创建新项目。`,
         status: 'accepted',
@@ -912,7 +1069,7 @@ function App() {
     ])
     setAgentMessages([
       {
-        id: `m${Date.now()}`,
+        id: createId('m'),
         role: 'agent',
         text: prompt
           ? `我已经根据你的需求「${prompt}」建立一版「${next.title}」。你可以直接改文字，也可以选中图表、图片或整页提交修改要求。`
@@ -933,7 +1090,7 @@ function App() {
   function createNewSlide() {
     const nextSlide: Slide = {
       ...slideBase,
-      id: `slide-${Date.now()}`,
+      id: createId('slide-'),
       layout: 'insight',
       visual: 'combo',
       status: 'draft',
@@ -951,7 +1108,7 @@ function App() {
     const index = slides.findIndex((slide) => slide.id === activeSlide.id)
     const copy: Slide = {
       ...activeSlide,
-      id: `${activeSlide.id}-copy-${Date.now()}`,
+      id: `${activeSlide.id}-copy-${createId('slide')}`,
       title: `${activeSlide.title.replace('\n', ' ')} 副本`,
       status: 'draft',
     }
@@ -988,7 +1145,12 @@ function App() {
   function applyDesignPreset(id: string) {
     const preset = designPresets.find((item) => item.id === id)
     if (!preset) return
-    setDesignControls(preset.controls)
+    const nextStyle = presetToDesignStyle(preset)
+    setDesignStyles((current) => {
+      const exists = current.some((style) => style.id === id)
+      return exists ? current.map((style) => (style.id === id ? { ...style, ...nextStyle } : style)) : [nextStyle, ...current]
+    })
+    setActiveDesignStyleId(id)
     addRevision(`已套用「${preset.title}」设计风格。`, '设计风格', 'accepted')
   }
 
@@ -1016,7 +1178,13 @@ function App() {
     }
 
     if (action.type === 'applyBrand' || action.type === 'applyDesignStyle') {
-      setDesignControls((current) => ({ ...current, ...action.patch }))
+      if (action.type === 'applyDesignStyle' && action.styleId) {
+        const style = designStyles.find((item) => item.id === action.styleId)
+        if (style) setActiveDesignStyleId(style.id)
+      }
+      if (action.patch) {
+        updateActiveDesignControls(action.patch)
+      }
       addRevision(action.summary ?? 'Agent 已调整设计风格。', '设计风格', 'accepted')
       return
     }
@@ -1035,7 +1203,7 @@ function App() {
     }
 
     if (action.type === 'addAgentMessage') {
-      setAgentMessages((current) => [...current, { id: `m${Date.now()}`, role: 'agent', text: action.text }])
+      setAgentMessages((current) => [...current, { id: createId('m'), role: 'agent', text: action.text }])
     }
   }
 
@@ -1047,8 +1215,9 @@ function App() {
     if (!collabDraft.trim()) return
     const prompt = collabDraft.trim()
     const comment: ReviewComment = {
-      id: `c${Date.now()}`,
+      id: createId('c'),
       slideId: activeSlide.id,
+      targetRef: targetRefFor(activeSlide.id, selectedTarget),
       target: selectedTarget,
       request: prompt,
       status: 'open',
@@ -1056,9 +1225,9 @@ function App() {
     setComments((current) => [comment, ...current])
     setAgentMessages((current) => [
       ...current,
-      { id: `m${Date.now()}`, role: 'user', text: `修改【${comment.target}】：${comment.request}` },
+      { id: createId('m'), role: 'user', text: `修改【${comment.target}】：${comment.request}` },
       {
-        id: `m${Date.now() + 1}`,
+        id: createId('m'),
         role: 'agent',
         text: '已收到这条带对象定位的修改要求。我会把它作为修订任务处理，不会静默覆盖你的内容。',
       },
@@ -1067,55 +1236,85 @@ function App() {
     setCollabDraft('')
   }
 
+  function buildRevisionFromComment(comment: ReviewComment): Revision {
+    const targetSlide = slides.find((slide) => slide.id === comment.slideId)
+    const patch: RevisionPatch = { slideId: comment.slideId, slide: { status: 'review' } }
+    let summary = `根据「${comment.target}」批注生成修改提案：${comment.request}`
+
+    if (comment.target === '图表') {
+      patch.slide = { ...patch.slide, visual: 'combo', visualHeight: 320 }
+      summary = `建议把 ${comment.slideId} 的图表改为组合图，并提高图表高度以突出趋势。`
+    }
+    if (comment.target === '标题' && /不换行|不要换行|单行|一行/.test(comment.request)) {
+      patch.slide = { ...patch.slide, titleWrap: 'nowrap', titleWidth: 92, titleSize: 32 }
+      summary = `建议将 ${comment.slideId} 的标题设为单行约束，并自动缩小字号避免换行。`
+    }
+    if (comment.target === '正文' && targetSlide) {
+      patch.slide = {
+        ...patch.slide,
+        body: `${targetSlide.body} 这里需要明确区分相关性和因果性，后续建议通过对照实验验证。`,
+      }
+      summary = `建议补充正文，明确区分相关性、因果性和后续验证动作。`
+    }
+    if (comment.target === '图片') {
+      patch.slide = { ...patch.slide, imageTone: 'mono', imageZoom: 112 }
+      summary = `建议将 ${comment.slideId} 的图片调整为黑白高级风格，并轻微放大裁切。`
+    }
+    if (comment.target === '整页') {
+      patch.slide = { ...patch.slide, bodyWidth: 82 }
+      summary = `建议放宽 ${comment.slideId} 的正文宽度，并把该页标记为待审。`
+    }
+    if (comment.target === '手绘区域') {
+      summary = comment.bbox
+        ? `建议按手绘区域处理：x ${comment.bbox.x.toFixed(1)}%、y ${comment.bbox.y.toFixed(1)}%、w ${comment.bbox.width.toFixed(1)}%、h ${comment.bbox.height.toFixed(1)}%。说明：${comment.request}`
+        : `建议按手绘标注处理：${comment.request}`
+    }
+
+    return {
+      id: `${createId('r')}-${comment.id}`,
+      target: comment.targetRef,
+      summary,
+      status: 'pending',
+      sourceCommentId: comment.id,
+      patch,
+      createdAt: new Date().toISOString(),
+    }
+  }
+
   function resolveOpenComments() {
     const pending = comments.filter((comment) => comment.status === 'open')
     if (!pending.length) return
 
-    pending.forEach((comment) => {
-      if (comment.target === '图表') {
-        updateSlide(comment.slideId, { visual: 'combo', status: 'review', visualHeight: 320 })
-      }
-      if (comment.target === '标题' && /不换行|不要换行|单行|一行/.test(comment.request)) {
-        updateSlide(comment.slideId, { titleWrap: 'nowrap', titleWidth: 92, titleSize: 32, status: 'review' })
-      }
-      if (comment.target === '正文') {
-        const targetSlide = slides.find((slide) => slide.id === comment.slideId)
-        if (targetSlide) {
-          updateSlide(comment.slideId, {
-            body: `${targetSlide.body} 这里需要明确区分相关性和因果性，后续建议通过对照实验验证。`,
-            status: 'review',
-          })
-        }
-      }
-      if (comment.target === '图片') {
-        updateSlide(comment.slideId, { imageTone: 'mono', imageZoom: 112, status: 'review' })
-      }
-      if (comment.target === '整页') {
-        updateSlide(comment.slideId, { status: 'review', bodyWidth: 82 })
-      }
-      if (comment.target === '手绘区域') {
-        updateSlide(comment.slideId, { status: 'review' })
-      }
-    })
+    const proposals = pending.map((comment) => buildRevisionFromComment(comment))
 
     setComments((current) => current.map((comment) => (comment.status === 'open' ? { ...comment, status: 'resolved' } : comment)))
-    addRevision(`Agent 已处理 ${pending.length} 条带对象定位的修改要求。`, '协作待办', 'accepted')
-    setAgentMessages((current) => [...current, { id: `m${Date.now()}`, role: 'agent', text: `我处理了 ${pending.length} 条待办，并生成了可审阅的修订记录。` }])
+    setRevisions((current) => [...proposals, ...current])
+    setAgentMessages((current) => [
+      ...current,
+      { id: createId('m'), role: 'agent', text: `我把 ${pending.length} 条待办转换成了修订提案。确认前不会直接覆盖画布内容。` },
+    ])
   }
 
   function setRevisionStatus(id: string, status: Revision['status']) {
-    setRevisions((current) => current.map((revision) => (revision.id === id ? { ...revision, status } : revision)))
-  }
-
-  function exportHtml() {
-    downloadText('vizual-studio-deck.html', createStandaloneHtml(slides, brandGuide, designControls, projectTitle))
+    const revision = revisions.find((item) => item.id === id)
+    if (status === 'accepted' && revision?.patch) {
+      if (revision.patch.slideId && revision.patch.slide) {
+        updateSlide(revision.patch.slideId, revision.patch.slide)
+      }
+      if (revision.patch.design) {
+        updateActiveDesignControls(revision.patch.design)
+      }
+    }
+    setRevisions((current) => current.map((item) => (item.id === id ? { ...item, status } : item)))
   }
 
   function resetDemo() {
     window.localStorage.removeItem(STORAGE_KEY)
     setView('home')
     setProjectTitle('2026 Q1 经营分析汇报')
-    setDesignControls(initialDesign)
+    const styles = normalizeDesignStyles(null, initialDesign)
+    setDesignStyles(styles)
+    setActiveDesignStyleId(styles[0].id)
     setSlides(initialSlides)
     setComments(initialComments)
     setAnnotationQueue([])
@@ -1136,9 +1335,20 @@ function App() {
   }, [designControls])
 
   useEffect(() => {
-    const project: StoredProject = { view, projectTitle, designControls, slides, comments, revisions, agentMessages, annotationQueue }
+    const project: StoredProject = {
+      view,
+      projectTitle,
+      designControls,
+      designStyles,
+      activeDesignStyleId,
+      slides,
+      comments,
+      revisions,
+      agentMessages,
+      annotationQueue,
+    }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project))
-  }, [view, projectTitle, designControls, slides, comments, revisions, agentMessages, annotationQueue])
+  }, [view, projectTitle, designControls, designStyles, activeDesignStyleId, slides, comments, revisions, agentMessages, annotationQueue])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1159,6 +1369,7 @@ function App() {
   // The bridge intentionally mirrors the latest React state for browser-controlled agents.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
     window.VizualStudio = {
       snapshot: () => ({
         view,
@@ -1170,7 +1381,10 @@ function App() {
         comments,
         revisions,
         annotationQueue,
+        targetRefs,
         designControls,
+        designStyles,
+        activeDesignStyleId,
         mappingReport: themeReport,
       }),
       getOpenComments: () => comments.filter((comment) => comment.status === 'open'),
@@ -1217,7 +1431,7 @@ function App() {
               <span>PPT 编辑</span>
               <strong>{projectTitle}</strong>
               <small>
-                {slides.length} 页 · {deckProgress}% 已确认 · {openComments.length} 条待处理
+                {slides.length} 页 · {activeDesignStyle.title} · {deckProgress}% 已确认 · {openComments.length} 条待处理
               </small>
             </div>
             <div className="context-actions editor-context-actions">
@@ -1241,12 +1455,6 @@ function App() {
               <button type="button" onClick={() => setView('design')}>
                 设计风格
               </button>
-              <button type="button" onClick={() => window.print()}>
-                导出 PDF
-              </button>
-              <button type="button" onClick={exportHtml}>
-                导出 HTML
-              </button>
             </div>
           </>
         )}
@@ -1258,7 +1466,7 @@ function App() {
             </button>
             <div className="context-title">
               <span>设计风格库</span>
-              <strong>{designControls.styleName}</strong>
+              <strong>{activeDesignStyle.title}</strong>
               <small>
                 标准映射 {themeReport?.mappedCount ?? 0}/{themeReport?.tokenCount ?? 0} · {themeReport?.qualityScore ?? 0} 分
               </small>
@@ -1376,27 +1584,67 @@ function App() {
           <section className="design-controls">
             <div className="panel-title">
               <span>设计风格</span>
-              <h1>为不同 PPT 保存多套可复用的设计风格</h1>
-              <p>这里调整的颜色、圆角、密度和动效会实时应用到 PPT 画布和 Vizual 图表组件。</p>
+              <h1>为 PPT 建立可复用的设计风格库</h1>
+              <p>每个 PPT 绑定一套当前风格，也可以在项目内保存多套风格，用于不同受众、场景和汇报语气。</p>
+            </div>
+
+            <div className="style-library-actions">
+              <button type="button" onClick={createDesignStyleFromCurrent}>
+                新建风格
+              </button>
+              <button type="button" onClick={duplicateDesignStyle}>
+                复制当前
+              </button>
+              <button type="button" onClick={deleteActiveDesignStyle} disabled={designStyles.length <= 1}>
+                删除
+              </button>
             </div>
 
             <div className="style-preset-list">
-              {designPresets.map((preset) => (
+              {designStyles.map((style) => (
                 <button
-                  className={preset.controls.accent === designControls.accent && preset.controls.styleName === designControls.styleName ? 'active' : ''}
-                  key={preset.id}
+                  className={style.id === activeDesignStyleId ? 'active' : ''}
+                  key={style.id}
                   type="button"
-                  onClick={() => applyDesignPreset(preset.id)}
+                  onClick={() => activateDesignStyle(style.id)}
                 >
-                  <i style={{ background: preset.controls.accent }} />
+                  <i style={{ background: style.controls.accent }} />
                   <span>
-                    <strong>{preset.title}</strong>
-                    <small>{preset.description}</small>
+                    <strong>{style.title}</strong>
+                    <small>{style.description}</small>
+                    <em>{style.source === 'preset' ? '内置' : style.source === 'agent' ? 'AI 生成' : '自定义'}</em>
                   </span>
                 </button>
               ))}
             </div>
 
+            <div className="preset-shortcuts">
+              <span>内置模板</span>
+              {designPresets.map((preset) => (
+                <button key={preset.id} type="button" onClick={() => applyDesignPreset(preset.id)}>
+                  {preset.title}
+                </button>
+              ))}
+            </div>
+
+            <label>
+              风格标题
+              <input
+                value={activeDesignStyle.title}
+                onChange={(event) => {
+                  updateActiveDesignStyle({ title: event.target.value })
+                  updateActiveDesignControls({ styleName: event.target.value })
+                }}
+              />
+            </label>
+            <label>
+              使用说明
+              <textarea
+                value={activeDesignStyle.description}
+                onChange={(event) => updateActiveDesignStyle({ description: event.target.value })}
+                rows={3}
+              />
+            </label>
             <label>
               风格名称
               <input value={designControls.styleName} onChange={(event) => updateControl('styleName', event.target.value)} />
@@ -1404,19 +1652,39 @@ function App() {
             <div className="color-grid">
               <label>
                 主色
-                <input type="color" value={designControls.accent} onChange={(event) => updateControl('accent', event.target.value)} />
+                <input
+                  type="color"
+                  value={designControls.accent}
+                  onInput={(event) => updateControl('accent', event.currentTarget.value)}
+                  onChange={(event) => updateControl('accent', event.target.value)}
+                />
               </label>
               <label>
                 背景
-                <input type="color" value={designControls.background} onChange={(event) => updateControl('background', event.target.value)} />
+                <input
+                  type="color"
+                  value={designControls.background}
+                  onInput={(event) => updateControl('background', event.currentTarget.value)}
+                  onChange={(event) => updateControl('background', event.target.value)}
+                />
               </label>
               <label>
                 版面
-                <input type="color" value={designControls.surface} onChange={(event) => updateControl('surface', event.target.value)} />
+                <input
+                  type="color"
+                  value={designControls.surface}
+                  onInput={(event) => updateControl('surface', event.currentTarget.value)}
+                  onChange={(event) => updateControl('surface', event.target.value)}
+                />
               </label>
               <label>
                 文字
-                <input type="color" value={designControls.text} onChange={(event) => updateControl('text', event.target.value)} />
+                <input
+                  type="color"
+                  value={designControls.text}
+                  onInput={(event) => updateControl('text', event.currentTarget.value)}
+                  onChange={(event) => updateControl('text', event.target.value)}
+                />
               </label>
             </div>
             <label>
@@ -1557,6 +1825,9 @@ function App() {
 
               <div
                 className={`slide-canvas slide-${activeSlide.layout} canvas-mode-${canvasMode}`}
+                data-screen-label={activeScreenLabel}
+                data-slide-id={activeSlide.id}
+                data-target-ref={targetRefFor(activeSlide.id, '整页')}
                 onClick={() => handleTargetSelect('整页')}
                 onPointerDown={handleCanvasPointerDown}
                 onPointerMove={handleCanvasPointerMove}
@@ -1567,6 +1838,8 @@ function App() {
                   <h1
                     className={selectedTarget === '标题' ? 'editable-title selected' : 'editable-title'}
                     contentEditable={canvasMode === 'edit'}
+                    data-target-ref={targetRefFor(activeSlide.id, '标题')}
+                    data-target-kind="title"
                     suppressContentEditableWarning
                     style={{
                       width: `${titleStyle.width}%`,
@@ -1597,6 +1870,8 @@ function App() {
                   <p
                     className={selectedTarget === '正文' ? 'editable-body selected' : 'editable-body'}
                     contentEditable={canvasMode === 'edit'}
+                    data-target-ref={targetRefFor(activeSlide.id, '正文')}
+                    data-target-kind="body"
                     suppressContentEditableWarning
                     style={{
                       width: `${bodyStyle.width}%`,
@@ -1630,6 +1905,8 @@ function App() {
                   <div className="slide-media-grid">
                     <button
                       className={selectedTarget === '图片' ? `image-block tone-${activeSlide.imageTone} selected` : `image-block tone-${activeSlide.imageTone}`}
+                      data-target-ref={targetRefFor(activeSlide.id, '图片')}
+                      data-target-kind="image"
                       style={{
                         minHeight: `${imageStyle.height}px`,
                         opacity: imageStyle.opacity,
@@ -1649,6 +1926,8 @@ function App() {
                     </button>
                     <div
                       className={selectedTarget === '图表' ? 'slide-viz selected' : 'slide-viz'}
+                      data-target-ref={targetRefFor(activeSlide.id, '图表')}
+                      data-target-kind="visual"
                       style={{
                         minHeight: visualStyle.height,
                         opacity: visualStyle.opacity,
@@ -1822,7 +2101,12 @@ function App() {
                     <div className="field-grid">
                       <label>
                         Color
-                        <input type="color" value={selectedStyle.color} onChange={(event) => updateElementStyle(selectedTarget, { color: event.target.value })} />
+                        <input
+                          type="color"
+                          value={selectedStyle.color}
+                          onInput={(event) => updateElementStyle(selectedTarget, { color: event.currentTarget.value })}
+                          onChange={(event) => updateElementStyle(selectedTarget, { color: event.target.value })}
+                        />
                       </label>
                       <label>
                         Align
@@ -1898,11 +2182,21 @@ function App() {
                     <h3>Design Style</h3>
                     <label>
                       设计主色
-                      <input type="color" value={designControls.accent} onChange={(event) => updateControl('accent', event.target.value)} />
+                      <input
+                        type="color"
+                        value={designControls.accent}
+                        onInput={(event) => updateControl('accent', event.currentTarget.value)}
+                        onChange={(event) => updateControl('accent', event.target.value)}
+                      />
                     </label>
                     <label>
                       背景色
-                      <input type="color" value={designControls.background} onChange={(event) => updateControl('background', event.target.value)} />
+                      <input
+                        type="color"
+                        value={designControls.background}
+                        onInput={(event) => updateControl('background', event.currentTarget.value)}
+                        onChange={(event) => updateControl('background', event.target.value)}
+                      />
                     </label>
                     <label>
                       信息密度
