@@ -42,7 +42,7 @@
 
 范围：
 
-- palette/radius/shadow/density/motion controls。
+- palette/radius/shadow/density controls；motion 暂缓为后续研究项。
 - standard Design.md editor。
 - mapping report。
 - theme preview matrix。

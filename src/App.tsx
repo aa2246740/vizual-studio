@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent } from 'react'
 import { VizualRenderer, loadDesignMd, type ThemeMappingReport, type VizualSpec } from 'vizual'
 import './App.css'
 
 type AppView = 'home' | 'editor' | 'design'
-type AgentTab = 'chat' | 'tweak' | 'review'
 type CanvasMode = 'select' | 'edit' | 'draw' | 'click'
 type SelectedTarget = '整页' | '标题' | '正文' | '图表' | '图片' | '手绘区域'
 type StyleTargetKey = 'page' | 'title' | 'body' | 'visual' | 'image'
@@ -42,7 +41,6 @@ type DesignControls = {
   muted: string
   radius: number
   density: 'executive' | 'analytical' | 'board'
-  motion: 'none' | 'subtle' | 'cinematic'
 }
 
 type DesignStyle = {
@@ -93,16 +91,6 @@ type ReviewComment = {
   bbox?: DrawRect
 }
 
-type AnnotationTask = {
-  id: string
-  slideId: string
-  targetRef: string
-  target: SelectedTarget
-  mode: 'draw' | 'click'
-  instruction: string
-  bbox?: DrawRect
-}
-
 type BlockTarget = {
   id: string
   slideId: string
@@ -143,7 +131,6 @@ type StoredProject = {
   comments: ReviewComment[]
   revisions: Revision[]
   agentMessages: AgentMessage[]
-  annotationQueue?: AnnotationTask[]
 }
 
 type StudioAgentAction =
@@ -169,7 +156,6 @@ declare global {
         slides: Slide[]
         comments: ReviewComment[]
         revisions: Revision[]
-        annotationQueue: AnnotationTask[]
         targetRefs: BlockTarget[]
         designControls: DesignControls
         designStyles: DesignStyle[]
@@ -202,7 +188,6 @@ const initialDesign: DesignControls = {
   muted: '#697386',
   radius: 10,
   density: 'executive',
-  motion: 'subtle',
 }
 
 const designPresets: Array<{ id: string; title: string; description: string; controls: DesignControls }> = [
@@ -225,7 +210,6 @@ const designPresets: Array<{ id: string; title: string; description: string; con
       muted: '#6f6f6f',
       radius: 0,
       density: 'analytical',
-      motion: 'none',
     },
   },
   {
@@ -241,7 +225,6 @@ const designPresets: Array<{ id: string; title: string; description: string; con
       muted: '#5f6f68',
       radius: 18,
       density: 'executive',
-      motion: 'subtle',
     },
   },
 ]
@@ -421,15 +404,15 @@ const densityLabels: Record<DesignControls['density'], string> = {
   board: '董事会',
 }
 
-const motionLabels: Record<DesignControls['motion'], string> = {
-  none: '无动效',
-  subtle: '克制动效',
-  cinematic: '演示级动效',
+const densityDescriptions: Record<DesignControls['density'], string> = {
+  executive: '大字号、大留白、突出结论',
+  analytical: '更紧凑、更多指标和表格信息',
+  board: '克制留白、适合正式汇报',
 }
 
 function buildBrandGuide(controls: DesignControls) {
   const densityText = {
-    executive: 'Executive rhythm: fewer objects, stronger hierarchy, one decision per slide.',
+    executive: 'High-level executive rhythm: fewer objects, stronger hierarchy, one decision per slide.',
     analytical: 'Analytical rhythm: denser tables and charts are allowed when they support auditability.',
     board: 'Board rhythm: restrained, high-contrast pages with strong source traceability.',
   }[controls.density]
@@ -437,11 +420,27 @@ function buildBrandGuide(controls: DesignControls) {
   return `# ${controls.styleName} Design System
 
 ## Color Palette & Roles
-- Primary / Accent (${controls.accent}): CTA, active state, chart-1, focus ring, high-priority callouts.
-- Background (${controls.background}): Main page canvas and slide backdrop.
-- Surface / Card (${controls.surface}): Cards, slide panels, control surfaces, data containers.
-- Text / Foreground (${controls.text}): Primary text.
-- Text Muted / Secondary (${controls.muted}): Captions, metadata, helper copy.
+### Primary
+- Primary Accent (${controls.accent}): primary action, active state, chart-1, focus ring, high-priority callout.
+
+### Surface & Background
+- Background (${controls.background}): main page canvas and slide backdrop.
+- Surface (${controls.surface}): slide panels, cards, control surfaces, data containers.
+- Card (${controls.surface}): KPI cards, chart containers, table panels.
+
+### Text
+- Text Primary (${controls.text}): headings, body text, table values.
+- Text Muted (${controls.muted}): captions, metadata, helper copy, axis labels.
+
+### Chart Palette
+- Chart 1 (${controls.accent}): primary data series.
+- Chart 2 (${controls.muted}): secondary data series.
+- Chart 3 (${controls.text}): emphasis data series.
+
+### Semantic Colors
+- Success (#16a34a): positive status.
+- Warning (#f59e0b): caution status.
+- Error (#dc2626): risk or destructive state.
 
 ## Typography Rules
 - Primary font: Inter, Microsoft YaHei, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif.
@@ -452,18 +451,47 @@ function buildBrandGuide(controls: DesignControls) {
 ## Component Stylings
 - Cards use ${controls.radius}px radius.
 - Buttons use ${Math.max(controls.radius * 2, 12)}px radius.
-- Charts, tables, KPI cards, and page sections inherit runtime colors.
+- KPI cards use Surface background, Text Primary values, Text Muted labels, and Primary Accent for trend emphasis.
+- Tables use Surface background, Text Primary body, Text Muted headers, and subtle borders.
+- Chart panels use Surface background, Chart Palette series, and Text Muted axes.
+- Buttons use Primary Accent for primary actions and Surface for secondary actions.
 
 ## Layout Principles
 - Use a 16:9 slide canvas for presentation pages.
 - ${densityText}
+- Keep all design tokens scoped to the deck content. Product chrome and editor controls must not inherit deck styling.
 
-## Motion
-- Motion mode: ${controls.motion}. Motion should clarify hierarchy, not distract from data.
 `
 }
 
 function buildDeckThemeStyle(controls: DesignControls): CSSProperties {
+  const densityVars = {
+    executive: {
+      padding: 'clamp(30px, 4.2vw, 56px)',
+      gap: '18px',
+      titleScale: 1,
+      bodyScale: 1,
+      cardPadding: '16px',
+      chartMin: '228px',
+    },
+    analytical: {
+      padding: 'clamp(18px, 2.4vw, 34px)',
+      gap: '10px',
+      titleScale: 0.82,
+      bodyScale: 0.9,
+      cardPadding: '10px',
+      chartMin: '252px',
+    },
+    board: {
+      padding: 'clamp(24px, 3.2vw, 46px)',
+      gap: '14px',
+      titleScale: 0.92,
+      bodyScale: 0.96,
+      cardPadding: '14px',
+      chartMin: '220px',
+    },
+  }[controls.density]
+
   return {
     '--studio-bg': controls.background,
     '--studio-surface': controls.surface,
@@ -472,6 +500,12 @@ function buildDeckThemeStyle(controls: DesignControls): CSSProperties {
     '--studio-muted': controls.muted,
     '--studio-accent': controls.accent,
     '--studio-radius': `${controls.radius}px`,
+    '--deck-slide-padding': densityVars.padding,
+    '--deck-gap': densityVars.gap,
+    '--deck-title-scale': String(densityVars.titleScale),
+    '--deck-body-scale': String(densityVars.bodyScale),
+    '--deck-card-padding': densityVars.cardPadding,
+    '--deck-chart-min': densityVars.chartMin,
   } as CSSProperties
 }
 
@@ -813,23 +847,29 @@ function App() {
     return { styles, activeId }
   }, [stored.activeDesignStyleId, stored.designControls, stored.designStyles])
   const [view, setView] = useState<AppView>(stored.view ?? 'home')
-  const [agentTab, setAgentTab] = useState<AgentTab>('chat')
   const [projectTitle, setProjectTitle] = useState(stored.projectTitle ?? '2026 Q1 经营分析汇报')
   const [designStyles, setDesignStyles] = useState<DesignStyle[]>(initialDesignState.styles)
   const [activeDesignStyleId, setActiveDesignStyleId] = useState(initialDesignState.activeId)
   const [slides, setSlides] = useState(stored.slides ?? initialSlides)
   const [comments, setComments] = useState(() => normalizeComments(stored.comments))
   const [revisions, setRevisions] = useState(stored.revisions ?? initialRevisions)
-  const [agentMessages, setAgentMessages] = useState(stored.agentMessages ?? initialAgentMessages)
-  const [annotationQueue, setAnnotationQueue] = useState<AnnotationTask[]>(stored.annotationQueue ?? [])
+  const [agentMessages, setAgentMessages] = useState(() =>
+    (stored.agentMessages ?? initialAgentMessages).map((message) => ({
+      ...message,
+      text: message.text.replace(/待办/g, '修改意见').replace('转换成了修订提案', '生成了修订提案'),
+    })),
+  )
   const [activeSlideId, setActiveSlideId] = useState(slides[0].id)
   const [selectedTarget, setSelectedTarget] = useState<SelectedTarget>('整页')
   const [canvasMode, setCanvasMode] = useState<CanvasMode>('select')
   const [collabDraft, setCollabDraft] = useState('')
   const [annotationDraft, setAnnotationDraft] = useState('')
+  const [targetDraft, setTargetDraft] = useState('')
+  const [targetPopupOpen, setTargetPopupOpen] = useState(false)
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null)
   const [drawRect, setDrawRect] = useState<DrawRect | null>(null)
   const [homePrompt, setHomePrompt] = useState('')
+  const messageListRef = useRef<HTMLDivElement | null>(null)
 
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? slides[0]
   const activeSlideIndex = Math.max(0, slides.findIndex((slide) => slide.id === activeSlide.id))
@@ -857,7 +897,6 @@ function App() {
       return undefined
     }
   }, [brandGuide])
-  const openComments = comments.filter((comment) => comment.status === 'open')
   const deckProgress = Math.round((slides.filter((slide) => slide.status === 'approved').length / slides.length) * 100)
 
   function updateSlide(id: string, patch: Partial<Slide>) {
@@ -966,18 +1005,16 @@ function App() {
     setCanvasMode(nextMode)
     setDrawStart(null)
     setDrawRect(null)
-    if (nextMode === 'edit') {
-      setAgentTab('tweak')
-    }
-    if (nextMode === 'draw' || nextMode === 'click') {
-      setAgentTab('chat')
+    setTargetPopupOpen(false)
+    if (nextMode !== 'draw') {
+      setAnnotationDraft('')
     }
   }
 
   function handleTargetSelect(target: SelectedTarget) {
     setSelectedTarget(target)
-    if (canvasMode === 'edit') {
-      setAgentTab('tweak')
+    if (canvasMode !== 'edit' && target !== '整页') {
+      setTargetPopupOpen(true)
     }
   }
 
@@ -1005,53 +1042,9 @@ function App() {
     if (canvasMode !== 'draw') return
     setDrawStart(null)
     event.currentTarget.releasePointerCapture(event.pointerId)
-  }
-
-  function queueAnnotation() {
-    const instruction = annotationDraft.trim()
-    if (!instruction) return
-    const task: AnnotationTask = {
-      id: createId('a'),
-      slideId: activeSlide.id,
-      targetRef: targetRefFor(activeSlide.id, canvasMode === 'draw' ? '手绘区域' : selectedTarget),
-      target: canvasMode === 'draw' ? '手绘区域' : selectedTarget,
-      mode: canvasMode === 'draw' ? 'draw' : 'click',
-      instruction,
-      bbox: canvasMode === 'draw' && drawRect ? drawRect : undefined,
+    if (drawRect && (drawRect.width > 1 || drawRect.height > 1)) {
+      setTargetPopupOpen(true)
     }
-    setAnnotationQueue((current) => [task, ...current])
-    setAnnotationDraft('')
-    setDrawRect(null)
-  }
-
-  function sendAnnotationQueue() {
-    if (!annotationQueue.length) return
-    const queuedComments: ReviewComment[] = annotationQueue.map((task) => ({
-      id: `${createId('c')}-${task.id}`,
-      slideId: task.slideId,
-      targetRef: task.targetRef,
-      target: task.target,
-      request: task.instruction,
-      status: 'open',
-      mode: task.mode,
-      bbox: task.bbox,
-    }))
-    setComments((current) => [...queuedComments, ...current])
-    setAgentMessages((current) => [
-      ...current,
-      {
-        id: createId('m'),
-        role: 'user',
-        text: `提交了 ${queuedComments.length} 条画布标注，请按目标逐条生成修订建议。`,
-      },
-      {
-        id: createId('m'),
-        role: 'agent',
-        text: '已收到标注队列。每条标注都包含页面、目标、框选范围和说明，我会把它们作为可审阅修订处理。',
-      },
-    ])
-    window.dispatchEvent(new CustomEvent('vizual-studio:annotation-queue-sent', { detail: queuedComments }))
-    setAnnotationQueue([])
   }
 
   function addRevision(summary: string, target = `${activeSlide.id} / ${selectedTarget}`, status: Revision['status'] = 'pending') {
@@ -1071,7 +1064,6 @@ function App() {
     setProjectTitle(next.title)
     setSlides(next.slides)
     setComments([])
-    setAnnotationQueue([])
     setRevisions([
       {
         id: createId('r'),
@@ -1117,12 +1109,13 @@ function App() {
     setSelectedTarget('整页')
   }
 
-  function duplicateActiveSlide() {
-    const index = slides.findIndex((slide) => slide.id === activeSlide.id)
+  function duplicateSlide(id: string) {
+    const source = slides.find((slide) => slide.id === id) ?? activeSlide
+    const index = slides.findIndex((slide) => slide.id === source.id)
     const copy: Slide = {
-      ...activeSlide,
-      id: `${activeSlide.id}-copy-${createId('slide')}`,
-      title: `${activeSlide.title.replace('\n', ' ')} 副本`,
+      ...source,
+      id: `${source.id}-copy-${createId('slide')}`,
+      title: `${source.title.replace('\n', ' ')} 副本`,
       status: 'draft',
     }
     setSlides((current) => {
@@ -1134,17 +1127,19 @@ function App() {
     setSelectedTarget('整页')
   }
 
-  function deleteActiveSlide() {
+  function deleteSlide(id: string) {
     if (slides.length <= 1) return
-    const index = slides.findIndex((slide) => slide.id === activeSlide.id)
-    const nextSlides = slides.filter((slide) => slide.id !== activeSlide.id)
+    const index = slides.findIndex((slide) => slide.id === id)
+    const nextSlides = slides.filter((slide) => slide.id !== id)
     setSlides(nextSlides)
-    setActiveSlideId(nextSlides[Math.max(0, index - 1)].id)
+    if (activeSlide.id === id) {
+      setActiveSlideId(nextSlides[Math.max(0, index - 1)].id)
+    }
     setSelectedTarget('整页')
   }
 
-  function moveActiveSlide(direction: -1 | 1) {
-    const index = slides.findIndex((slide) => slide.id === activeSlide.id)
+  function moveSlide(id: string, direction: -1 | 1) {
+    const index = slides.findIndex((slide) => slide.id === id)
     const nextIndex = index + direction
     if (nextIndex < 0 || nextIndex >= slides.length) return
     setSlides((current) => {
@@ -1224,28 +1219,48 @@ function App() {
     updateSlide(activeSlide.id, { [key]: event.currentTarget.textContent ?? '' })
   }
 
-  function submitAgentRequest() {
-    if (!collabDraft.trim()) return
-    const prompt = collabDraft.trim()
+  function submitRevisionRequest(request: string, target: SelectedTarget, mode: ReviewComment['mode'] = 'chat', bbox?: DrawRect) {
+    const prompt = request.trim()
+    if (!prompt) return
     const comment: ReviewComment = {
       id: createId('c'),
       slideId: activeSlide.id,
-      targetRef: targetRefFor(activeSlide.id, selectedTarget),
-      target: selectedTarget,
+      targetRef: targetRefFor(activeSlide.id, target),
+      target,
       request: prompt,
-      status: 'open',
+      status: 'resolved',
+      mode,
+      bbox,
     }
+    const proposal = buildRevisionFromComment(comment)
     setComments((current) => [comment, ...current])
+    setRevisions((current) => [proposal, ...current])
     setAgentMessages((current) => [
       ...current,
       { id: createId('m'), role: 'user', text: `修改【${comment.target}】：${comment.request}` },
       {
         id: createId('m'),
         role: 'agent',
-        text: '已收到这条带对象定位的修改要求。我会把它作为修订任务处理，不会静默覆盖你的内容。',
+        text: `我已根据「${comment.target}」生成一条可确认的修订提案。接受前不会覆盖画布。`,
       },
     ])
     window.dispatchEvent(new CustomEvent('vizual-studio:comment-added', { detail: comment }))
+  }
+
+  function submitTargetPopup() {
+    const target = canvasMode === 'draw' ? '手绘区域' : selectedTarget
+    const text = (canvasMode === 'draw' ? annotationDraft : targetDraft).trim()
+    submitRevisionRequest(text, target, canvasMode === 'draw' ? 'draw' : 'click', canvasMode === 'draw' && drawRect ? drawRect : undefined)
+    setAnnotationDraft('')
+    setTargetDraft('')
+    setTargetPopupOpen(false)
+    setDrawRect(null)
+  }
+
+  function submitAgentRequest() {
+    const prompt = collabDraft.trim()
+    if (!prompt) return
+    submitRevisionRequest(prompt, selectedTarget)
     setCollabDraft('')
   }
 
@@ -1294,20 +1309,6 @@ function App() {
     }
   }
 
-  function resolveOpenComments() {
-    const pending = comments.filter((comment) => comment.status === 'open')
-    if (!pending.length) return
-
-    const proposals = pending.map((comment) => buildRevisionFromComment(comment))
-
-    setComments((current) => current.map((comment) => (comment.status === 'open' ? { ...comment, status: 'resolved' } : comment)))
-    setRevisions((current) => [...proposals, ...current])
-    setAgentMessages((current) => [
-      ...current,
-      { id: createId('m'), role: 'agent', text: `我把 ${pending.length} 条待办转换成了修订提案。确认前不会直接覆盖画布内容。` },
-    ])
-  }
-
   function setRevisionStatus(id: string, status: Revision['status']) {
     const revision = revisions.find((item) => item.id === id)
     if (status === 'accepted' && revision?.patch) {
@@ -1330,7 +1331,6 @@ function App() {
     setActiveDesignStyleId(styles[0].id)
     setSlides(initialSlides)
     setComments(initialComments)
-    setAnnotationQueue([])
     setRevisions(initialRevisions)
     setAgentMessages(initialAgentMessages)
     setActiveSlideId(initialSlides[0].id)
@@ -1348,10 +1348,9 @@ function App() {
       comments,
       revisions,
       agentMessages,
-      annotationQueue,
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project))
-  }, [view, projectTitle, designControls, designStyles, activeDesignStyleId, slides, comments, revisions, agentMessages, annotationQueue])
+  }, [view, projectTitle, designControls, designStyles, activeDesignStyleId, slides, comments, revisions, agentMessages])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1369,6 +1368,11 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
+  useEffect(() => {
+    const node = messageListRef.current
+    if (node) node.scrollTop = node.scrollHeight
+  }, [agentMessages, revisions])
+
   // The bridge intentionally mirrors the latest React state for browser-controlled agents.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -1383,7 +1387,6 @@ function App() {
         slides,
         comments,
         revisions,
-        annotationQueue,
         targetRefs,
         designControls,
         designStyles,
@@ -1434,27 +1437,10 @@ function App() {
               <span>PPT 编辑</span>
               <strong>{projectTitle}</strong>
               <small>
-                {slides.length} 页 · {activeDesignStyle.title} · {deckProgress}% 已确认 · {openComments.length} 条待处理
+                {slides.length} 页 · {activeDesignStyle.title} · {deckProgress}% 已确认
               </small>
             </div>
             <div className="context-actions editor-context-actions">
-              <div className="mode-switch appbar-mode-switch" aria-label="画布模式">
-                {[
-                  ['select', '选择'],
-                  ['edit', '编辑'],
-                  ['draw', '圈画'],
-                  ['click', '点选'],
-                ].map(([mode, label]) => (
-                  <button
-                    className={canvasMode === mode ? 'active' : ''}
-                    key={mode}
-                    type="button"
-                    onClick={() => selectCanvasMode(mode as CanvasMode)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
               <button type="button" onClick={() => setView('design')}>
                 设计风格
               </button>
@@ -1470,9 +1456,7 @@ function App() {
             <div className="context-title">
               <span>设计风格库</span>
               <strong>{activeDesignStyle.title}</strong>
-              <small>
-                标准映射 {themeReport?.mappedCount ?? 0}/{themeReport?.tokenCount ?? 0} · {themeReport?.qualityScore ?? 0} 分
-              </small>
+              <small>当前 PPT 已绑定这套设计风格</small>
             </div>
             <div className="context-actions">
               <button type="button" onClick={resetDemo}>
@@ -1572,7 +1556,7 @@ function App() {
               <span>协作方式</span>
               <h2>右侧协作面板会把批注变成修订任务</h2>
               <p>
-                用户选中页面、标题、正文、图表或图片后，直接把修改意见提交给 AI。AI 的修改会进入修订记录，用户可以继续确认、拒绝或再追问。
+                用户选中页面、标题、正文、图表或图片后，直接把修改意见提交给 AI。AI 会在右侧对话里给出可确认提案，用户可以接受、拒绝或继续追问。
               </p>
               <button type="button" onClick={() => setView('editor')}>
                 体验协作流
@@ -1701,20 +1685,13 @@ function App() {
               />
             </label>
             <label>
-              信息密度
+              版面密度
               <select value={designControls.density} onChange={(event) => updateControl('density', event.target.value as DesignControls['density'])}>
                 <option value="executive">{densityLabels.executive}</option>
                 <option value="analytical">{densityLabels.analytical}</option>
                 <option value="board">{densityLabels.board}</option>
               </select>
-            </label>
-            <label>
-              动效强度
-              <select value={designControls.motion} onChange={(event) => updateControl('motion', event.target.value as DesignControls['motion'])}>
-                <option value="none">{motionLabels.none}</option>
-                <option value="subtle">{motionLabels.subtle}</option>
-                <option value="cinematic">{motionLabels.cinematic}</option>
-              </select>
+              <small>{densityDescriptions[designControls.density]}</small>
             </label>
           </section>
 
@@ -1724,113 +1701,175 @@ function App() {
                 <span>实时预览</span>
                 <h2>同一套风格覆盖页面、图表、表格和按钮</h2>
               </div>
-              <div className="mapping-pill">
-                标准映射 {themeReport?.mappedCount ?? 0}/{themeReport?.tokenCount ?? 0} · {themeReport?.qualityScore ?? 0}分
-              </div>
+              <div className="preview-status-pill">当前风格实时应用</div>
             </div>
             <div className="design-preview-board" style={deckThemeStyle}>
-              <article className="design-tone-panel">
-                <div>
-                  <p className="eyebrow">{designControls.styleName}</p>
-                  <h2>品牌调性预览</h2>
-                  <p>
-                    同时验证封面气质、正文阅读、图表表达、表格密度、行动建议和按钮状态，避免只看一张样例导致风格落地偏差。
-                  </p>
+              <section className="design-element-lab">
+                <div className="element-lab-head">
+                  <div>
+                    <p className="eyebrow">{designControls.styleName}</p>
+                    <h2>品牌调性与基础元素总览</h2>
+                    <p>先验基础元素，再看真实 PPT 页面。这里会同时检查标题、正文、按钮、输入框、指标卡、表格、图表和提示块。</p>
+                  </div>
+                  <div className="tone-tags">
+                    <span>{densityLabels[designControls.density]}</span>
+                    <span>{densityDescriptions[designControls.density]}</span>
+                    <span>圆角 {designControls.radius}px</span>
+                  </div>
                 </div>
-                <div className="tone-tags">
-                  <span>{densityLabels[designControls.density]}</span>
-                  <span>{motionLabels[designControls.motion]}</span>
-                  <span>圆角 {designControls.radius}px</span>
-                </div>
-              </article>
 
-              <div className="design-scenario-grid">
-                <article className="scenario-card scenario-cover">
-                  <div className="scenario-label">
-                    <span>01</span>
-                    <strong>封面页</strong>
-                  </div>
-                  <div className="scenario-cover-art">
-                    <span>STRATEGY</span>
-                    <i />
-                  </div>
-                  <h3>2026 年经营策略汇报</h3>
-                  <p>用于检查大标题、导语、视觉留白和品牌主色是否足够有商业表达力。</p>
-                </article>
-
-                <article className="scenario-card scenario-data">
-                  <div className="scenario-label">
-                    <span>02</span>
-                    <strong>数据分析页</strong>
-                  </div>
-                  <div className="scenario-kpi-mini">
-                    {[
-                      ['收入', '1.16M'],
-                      ['活跃', '46k'],
-                      ['ARPPU', '4.1'],
-                    ].map(([label, value]) => (
-                      <div key={label}>
-                        <span>{label}</span>
-                        <strong>{value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="preview-viz compact">
-                    <VizualRenderer spec={buildVizualSpec({ ...activeSlide, visual: 'combo', visualHeight: 190 })} />
-                  </div>
-                </article>
-
-                <article className="scenario-card scenario-story">
-                  <div className="scenario-label">
-                    <span>03</span>
-                    <strong>图文叙事页</strong>
-                  </div>
-                  <div className="story-layout-preview">
-                    <div className="preview-image-card">
-                      <span>业务场景图</span>
+                <div className="element-lab-grid">
+                  <article className="lab-block lab-type">
+                    <span>标题 / 正文</span>
+                    <h3>增长质量开始分化</h3>
+                    <p>用于检查字体层级、正文可读性、字距、行距和品牌主色在长文本中的稳定性。</p>
+                  </article>
+                  <article className="lab-block lab-controls">
+                    <span>操作控件</span>
+                    <button type="button">主要按钮</button>
+                    <button type="button">次要按钮</button>
+                    <input readOnly value="筛选：华东区 / 近 7 天" />
+                  </article>
+                  <article className="lab-block lab-kpis">
+                    <span>指标卡</span>
+                    <div>
+                      <strong>1.16M</strong>
+                      <small>收入 -4.8%</small>
                     </div>
                     <div>
-                      <h3>增长质量开始分化</h3>
-                      <p>新用户增长没有同步转化为稳定活跃，需拆解渠道质量和新老用户留存。</p>
-                      <ul>
-                        <li>低价值用户流失更快</li>
-                        <li>高价值用户贡献被动上升</li>
-                        <li>需要按区域和客群拆分</li>
-                      </ul>
+                      <strong>46k</strong>
+                      <small>活跃用户 -16.4%</small>
+                    </div>
+                  </article>
+                  <article className="lab-block lab-chart">
+                    <span>图表</span>
+                    <VizualRenderer spec={buildVizualSpec({ ...activeSlide, visual: 'combo', visualHeight: 170 })} />
+                  </article>
+                  <article className="lab-block lab-table">
+                    <span>表格</span>
+                    <table>
+                      <tbody>
+                        <tr>
+                          <th>事项</th>
+                          <th>优先级</th>
+                          <th>负责人</th>
+                        </tr>
+                        <tr>
+                          <td>A/B 实验</td>
+                          <td>高</td>
+                          <td>增长组</td>
+                        </tr>
+                        <tr>
+                          <td>流失画像</td>
+                          <td>中</td>
+                          <td>数据组</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </article>
+                  <article className="lab-block lab-callout">
+                    <span>提示块</span>
+                    <strong>核心判断</strong>
+                    <p>ARPPU 上升可能来自用户筛选效应，不能直接说明产品体验改善。</p>
+                  </article>
+                </div>
+              </section>
+
+              <div className="scenario-slide-stack">
+                <article className="ppt-scenario-slide">
+                  <div className="scenario-slide-canvas">
+                    <div className="scenario-label">
+                      <span>01</span>
+                      <strong>封面页</strong>
+                    </div>
+                    <div className="scenario-cover-art">
+                      <span>STRATEGY</span>
+                      <i />
+                    </div>
+                    <h3>2026 年经营策略汇报</h3>
+                    <p>用于检查大标题、导语、视觉留白和品牌主色是否足够有商业表达力。</p>
+                  </div>
+                </article>
+
+                <article className="ppt-scenario-slide">
+                  <div className="scenario-slide-canvas">
+                    <div className="scenario-label">
+                      <span>02</span>
+                      <strong>数据分析页</strong>
+                    </div>
+                    <div className="scenario-kpi-mini">
+                      {[
+                        ['收入', '1.16M'],
+                        ['活跃', '46k'],
+                        ['ARPPU', '4.1'],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <span>{label}</span>
+                          <strong>{value}</strong>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="preview-viz compact">
+                      <VizualRenderer spec={buildVizualSpec({ ...activeSlide, visual: 'combo', visualHeight: 220 })} />
                     </div>
                   </div>
                 </article>
 
-                <article className="scenario-card scenario-table">
-                  <div className="scenario-label">
-                    <span>04</span>
-                    <strong>表格与行动页</strong>
+                <article className="ppt-scenario-slide">
+                  <div className="scenario-slide-canvas">
+                    <div className="scenario-label">
+                      <span>03</span>
+                      <strong>图文叙事页</strong>
+                    </div>
+                    <div className="story-layout-preview">
+                      <div className="preview-image-card">
+                        <span>业务场景图</span>
+                      </div>
+                      <div>
+                        <h3>增长质量开始分化</h3>
+                        <p>新用户增长没有同步转化为稳定活跃，需拆解渠道质量和新老用户留存。</p>
+                        <ul>
+                          <li>低价值用户流失更快</li>
+                          <li>高价值用户贡献被动上升</li>
+                          <li>需要按区域和客群拆分</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>事项</th>
-                        <th>优先级</th>
-                        <th>负责人</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>A/B 实验</td>
-                        <td>高</td>
-                        <td>增长组</td>
-                      </tr>
-                      <tr>
-                        <td>流失画像</td>
-                        <td>中</td>
-                        <td>数据组</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div className="preview-actions">
-                    <strong>下一步行动</strong>
-                    <p>先验证 30% 与 40% AI 内容占比，再决定是否扩大策略。</p>
-                    <button type="button">生成行动页</button>
+                </article>
+
+                <article className="ppt-scenario-slide">
+                  <div className="scenario-slide-canvas">
+                    <div className="scenario-label">
+                      <span>04</span>
+                      <strong>表格与行动页</strong>
+                    </div>
+                    <div className="action-slide-grid">
+                      <table>
+                        <tbody>
+                          <tr>
+                            <th>事项</th>
+                            <th>优先级</th>
+                            <th>负责人</th>
+                          </tr>
+                          <tr>
+                            <td>A/B 实验</td>
+                            <td>高</td>
+                            <td>增长组</td>
+                          </tr>
+                          <tr>
+                            <td>流失画像</td>
+                            <td>中</td>
+                            <td>数据组</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div className="preview-actions">
+                        <strong>下一步行动</strong>
+                        <p>先验证 30% 与 40% AI 内容占比，再决定是否扩大策略。</p>
+                        <button type="button">生成行动页</button>
+                      </div>
+                    </div>
                   </div>
                 </article>
               </div>
@@ -1865,19 +1904,35 @@ function App() {
                 </button>
               </div>
               {slides.map((slide, index) => (
-                <button
-                  className={slide.id === activeSlide.id ? 'thumb active' : 'thumb'}
-                  key={slide.id}
-                  onClick={() => {
-                    setActiveSlideId(slide.id)
-                    setSelectedTarget('整页')
-                  }}
-                  type="button"
-                >
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <strong>{slide.title.replace('\n', ' ')}</strong>
-                  <small>{statusLabels[slide.status]}</small>
-                </button>
+                <article className={slide.id === activeSlide.id ? 'thumb active' : 'thumb'} key={slide.id}>
+                  <button
+                    className="thumb-main"
+                    onClick={() => {
+                      setActiveSlideId(slide.id)
+                      setSelectedTarget('整页')
+                      setTargetPopupOpen(false)
+                    }}
+                    type="button"
+                  >
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <strong>{slide.title.replace('\n', ' ')}</strong>
+                    <small>{statusLabels[slide.status]}</small>
+                  </button>
+                  <div className="thumb-actions" aria-label={`${slide.title.replace('\n', ' ')} 页面操作`}>
+                    <button type="button" onClick={() => moveSlide(slide.id, -1)} disabled={index === 0} title="上移">
+                      ↑
+                    </button>
+                    <button type="button" onClick={() => moveSlide(slide.id, 1)} disabled={index === slides.length - 1} title="下移">
+                      ↓
+                    </button>
+                    <button type="button" onClick={() => duplicateSlide(slide.id)}>
+                      复制
+                    </button>
+                    <button type="button" onClick={() => deleteSlide(slide.id)} disabled={slides.length <= 1}>
+                      删除
+                    </button>
+                  </div>
+                </article>
               ))}
             </aside>
 
@@ -1903,23 +1958,22 @@ function App() {
                 </div>
               </div>
 
-              <div className="page-actions">
-                <label>
-                  项目名称
-                  <input value={projectTitle} onChange={(event) => setProjectTitle(event.target.value)} />
-                </label>
-                <button type="button" onClick={() => moveActiveSlide(-1)}>
-                  上移
-                </button>
-                <button type="button" onClick={() => moveActiveSlide(1)}>
-                  下移
-                </button>
-                <button type="button" onClick={duplicateActiveSlide}>
-                  复制当前页
-                </button>
-              <button type="button" onClick={deleteActiveSlide} disabled={slides.length <= 1}>
-                  删除当前页
-                </button>
+              <div className="canvas-mode-dock" aria-label="画布模式">
+                {[
+                  ['select', '选择'],
+                  ['edit', '编辑'],
+                  ['draw', '圈画'],
+                  ['click', '点选'],
+                ].map(([mode, label]) => (
+                  <button
+                    className={canvasMode === mode ? 'active' : ''}
+                    key={mode}
+                    type="button"
+                    onClick={() => selectCanvasMode(mode as CanvasMode)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
 
               <div
@@ -2055,6 +2109,31 @@ function App() {
                     }}
                   />
                 )}
+                {targetPopupOpen && canvasMode !== 'edit' && selectedTarget !== '整页' && (
+                  <div className="target-comment-popup" onClick={(event) => event.stopPropagation()}>
+                    <div>
+                      <strong>{canvasMode === 'draw' ? '圈画区域' : selectedTarget}</strong>
+                      <button type="button" onClick={() => setTargetPopupOpen(false)}>
+                        关闭
+                      </button>
+                    </div>
+                    <textarea
+                      value={canvasMode === 'draw' ? annotationDraft : targetDraft}
+                      onChange={(event) => {
+                        if (canvasMode === 'draw') {
+                          setAnnotationDraft(event.target.value)
+                        } else {
+                          setTargetDraft(event.target.value)
+                        }
+                      }}
+                      placeholder="写下你希望 AI 怎么改这里，例如：这里太挤了，改成更清晰的两列布局"
+                      rows={2}
+                    />
+                    <button className="primary-action" type="button" onClick={submitTargetPopup}>
+                      提交给 AI 修改
+                    </button>
+                  </div>
+                )}
                 <footer>
                   <span>{designControls.styleName}</span>
                   <span>{activeSlide.id}</span>
@@ -2070,44 +2149,6 @@ function App() {
                 />
               </div>
 
-              {(canvasMode === 'draw' || canvasMode === 'click') && (
-                <div className="annotation-composer">
-                  <div className="annotation-mode-tabs">
-                    <button className={canvasMode === 'draw' ? 'active' : ''} type="button" onClick={() => selectCanvasMode('draw')}>
-                      圈画 ⌘1
-                    </button>
-                    <button className={canvasMode === 'click' ? 'active' : ''} type="button" onClick={() => selectCanvasMode('click')}>
-                      点选 ⌘2
-                    </button>
-                  </div>
-                  <textarea
-                    value={annotationDraft}
-                    onChange={(event) => setAnnotationDraft(event.target.value)}
-                    placeholder={
-                      canvasMode === 'draw'
-                        ? '圈出区域后输入：删除这个按钮 / 这里太挤了 / 换一种更高级的版式'
-                        : `当前指向「${selectedTarget}」，输入你希望 AI 怎么修改`
-                    }
-                    rows={2}
-                  />
-                  <div className="annotation-actions">
-                    <button type="button" onClick={queueAnnotation}>
-                      加入队列
-                    </button>
-                    <button className="primary-action" type="button" onClick={sendAnnotationQueue} disabled={!annotationQueue.length}>
-                      发送给 AI
-                    </button>
-                  </div>
-                  <div className="annotation-queue">
-                    <strong>队列 {annotationQueue.length}</strong>
-                    {annotationQueue.slice(0, 4).map((task) => (
-                      <span key={task.id}>
-                        {task.mode === 'draw' ? '手绘' : '点击'} · {task.target}：{task.instruction}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </section>
           </main>
 
@@ -2117,64 +2158,52 @@ function App() {
                 <strong>AI 协作</strong>
                 <span>选中对象：{selectedTarget}</span>
               </div>
-              <button type="button" onClick={resolveOpenComments}>
-                处理待办
-              </button>
             </div>
 
-            <div className="agent-tabs">
-              {[
-                ['chat', 'AI 修改'],
-                ['tweak', '手动微调'],
-                ['review', '修订记录'],
-              ].map(([key, label]) => (
-                <button
-                  className={agentTab === key ? 'active' : ''}
-                  key={key}
-                  onClick={() => setAgentTab(key as AgentTab)}
-                  type="button"
-                >
-                  {label}
+            <section className="agent-section chat-section">
+              <div className="message-list" ref={messageListRef}>
+                {agentMessages.map((message) => (
+                  <article className={`message ${message.role}`} key={message.id}>
+                    {message.text}
+                  </article>
+                ))}
+                {revisions
+                  .filter((revision) => revision.status === 'pending')
+                  .map((revision) => (
+                    <article className="message proposal" key={revision.id}>
+                      <strong>AI 修订提案</strong>
+                      <span>{revision.target}</span>
+                      <p>{revision.summary}</p>
+                      <div>
+                        <button type="button" onClick={() => setRevisionStatus(revision.id, 'accepted')}>
+                          接受
+                        </button>
+                        <button type="button" onClick={() => setRevisionStatus(revision.id, 'rejected')}>
+                          拒绝
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+              </div>
+              <div className="chat-box">
+                <span>让 AI 修改当前{selectedTarget}</span>
+                <textarea
+                  value={collabDraft}
+                  onChange={(event) => setCollabDraft(event.target.value)}
+                  placeholder="例如：这个标题不要换行；这张图改成组合图并强调拐点；这张图片裁得更紧凑"
+                  rows={3}
+                />
+                <button type="button" onClick={submitAgentRequest}>
+                  提交给 AI
                 </button>
-              ))}
-            </div>
+              </div>
+            </section>
 
-            {agentTab === 'chat' && (
-              <section className="agent-section chat-section">
-                <div className="message-list">
-                  {openComments.map((comment) => (
-                    <article className="message task" key={comment.id}>
-                      <strong>{comment.slideId} · {comment.target}</strong>
-                      <span>{comment.request}</span>
-                    </article>
-                  ))}
-                  {agentMessages.map((message) => (
-                    <article className={`message ${message.role}`} key={message.id}>
-                      {message.text}
-                    </article>
-                  ))}
-                </div>
-                <div className="chat-box">
-                  <span>让 AI 修改当前{selectedTarget}</span>
-                  <textarea
-                    value={collabDraft}
-                    onChange={(event) => setCollabDraft(event.target.value)}
-                    placeholder="例如：这个标题不要换行；这张图改成组合图并强调拐点；这张图片裁得更紧凑"
-                    rows={3}
-                  />
-                  <button type="button" onClick={submitAgentRequest}>
-                    提交给 AI
-                  </button>
-                </div>
-              </section>
-            )}
-
-            {agentTab === 'tweak' && (
-              <section className="agent-section tweak-section">
-                <div className="tweak-target">
-                  <strong>{selectedTarget}</strong>
-                  <span>{canvasMode === 'edit' ? '编辑模式下可直接在画布打字，右侧负责精确样式。' : '手动微调只作用于当前选中对象。'}</span>
-                </div>
+            <section className="agent-section tweak-section">
+              <div className="tweak-target">
+                <strong>手动微调 · {selectedTarget}</strong>
+                <span>{canvasMode === 'edit' ? '编辑模式下可直接在画布打字，右侧负责精确样式。' : '手动微调只作用于当前选中对象。'}</span>
+              </div>
 
                 {(selectedTarget === '标题' || selectedTarget === '正文') && (
                   <div className="inspector-group">
@@ -2299,12 +2328,13 @@ function App() {
                       />
                     </label>
                     <label>
-                      信息密度
+                      版面密度
                       <select value={designControls.density} onChange={(event) => updateControl('density', event.target.value as DesignControls['density'])}>
                         <option value="executive">{densityLabels.executive}</option>
                         <option value="analytical">{densityLabels.analytical}</option>
                         <option value="board">{densityLabels.board}</option>
                       </select>
+                      <small>{densityDescriptions[designControls.density]}</small>
                     </label>
                   </div>
                 )}
@@ -2350,35 +2380,7 @@ function App() {
                     <input type="number" value={selectedStyle.radius} onChange={(event) => updateElementStyle(selectedTarget, { radius: Number(event.target.value) })} />
                   </label>
                 </div>
-              </section>
-            )}
-
-            {agentTab === 'review' && (
-              <section className="agent-section history-section">
-                <div className="progress-card">
-                  <strong>{deckProgress}%</strong>
-                  <span>已确认</span>
-                  <span>{openComments.length} 条待处理批注</span>
-                </div>
-                <div className="revision-list">
-                  {revisions.map((revision) => (
-                    <article className="revision" key={revision.id}>
-                      <span>{revision.target}</span>
-                      <p>{revision.summary}</p>
-                      <div>
-                        <button type="button" onClick={() => setRevisionStatus(revision.id, 'accepted')}>
-                          接受
-                        </button>
-                        <button type="button" onClick={() => setRevisionStatus(revision.id, 'rejected')}>
-                          拒绝
-                        </button>
-                      </div>
-                      <strong>{statusLabels[revision.status]}</strong>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
+            </section>
           </aside>
         </div>
       )}
