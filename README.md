@@ -98,6 +98,7 @@ npm run build
 
 详细文档见：
 
+- `docs/PRODUCT_SPEC.md`
 - `docs/PRODUCT_DEFINITION.md`
 - `docs/ARCHITECTURE.md`
 - `docs/CORE_GAPS.md`
