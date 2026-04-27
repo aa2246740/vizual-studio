@@ -1728,72 +1728,111 @@ function App() {
                 标准映射 {themeReport?.mappedCount ?? 0}/{themeReport?.tokenCount ?? 0} · {themeReport?.qualityScore ?? 0}分
               </div>
             </div>
-            <div className="design-slide-preview" style={deckThemeStyle}>
-              <div className="preview-slide-header">
+            <div className="design-preview-board" style={deckThemeStyle}>
+              <article className="design-tone-panel">
                 <div>
                   <p className="eyebrow">{designControls.styleName}</p>
-                  <h2>经营复盘汇报</h2>
-                  <p>用于验证标题、正文、指标、图表、表格、图片占位和行动建议是否都继承当前设计风格。</p>
+                  <h2>品牌调性预览</h2>
+                  <p>
+                    同时验证封面气质、正文阅读、图表表达、表格密度、行动建议和按钮状态，避免只看一张样例导致风格落地偏差。
+                  </p>
                 </div>
-                <span>01 / 12</span>
-              </div>
+                <div className="tone-tags">
+                  <span>{densityLabels[designControls.density]}</span>
+                  <span>{motionLabels[designControls.motion]}</span>
+                  <span>圆角 {designControls.radius}px</span>
+                </div>
+              </article>
 
-              <div className="preview-kpi-row">
-                {[
-                  ['收入', '1.16M', '-4.8%'],
-                  ['活跃用户', '46k', '-16.4%'],
-                  ['ARPPU', '4.1', '+36.7%'],
-                ].map(([label, value, trend]) => (
-                  <div className="preview-kpi-card" key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                    <small>{trend}</small>
+              <div className="design-scenario-grid">
+                <article className="scenario-card scenario-cover">
+                  <div className="scenario-label">
+                    <span>01</span>
+                    <strong>封面页</strong>
                   </div>
-                ))}
-              </div>
+                  <div className="scenario-cover-art">
+                    <span>STRATEGY</span>
+                    <i />
+                  </div>
+                  <h3>2026 年经营策略汇报</h3>
+                  <p>用于检查大标题、导语、视觉留白和品牌主色是否足够有商业表达力。</p>
+                </article>
 
-              <div className="preview-content-grid">
-                <div className="preview-viz">
-                  <VizualRenderer spec={buildVizualSpec({ ...activeSlide, visual: 'combo', visualHeight: 260 })} />
-                </div>
-                <div className="preview-side-stack">
-                  <div className="preview-image-card">
-                    <span>业务场景图</span>
+                <article className="scenario-card scenario-data">
+                  <div className="scenario-label">
+                    <span>02</span>
+                    <strong>数据分析页</strong>
                   </div>
-                  <div className="preview-callout">
-                    <strong>核心结论</strong>
-                    <p>收入下降主要来自用户规模收缩，ARPPU 上升可能是筛选效应，不能直接视为产品改善。</p>
+                  <div className="scenario-kpi-mini">
+                    {[
+                      ['收入', '1.16M'],
+                      ['活跃', '46k'],
+                      ['ARPPU', '4.1'],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              </div>
+                  <div className="preview-viz compact">
+                    <VizualRenderer spec={buildVizualSpec({ ...activeSlide, visual: 'combo', visualHeight: 190 })} />
+                  </div>
+                </article>
 
-              <div className="preview-bottom-grid">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>指标</th>
-                      <th>当前</th>
-                      <th>趋势</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>转化效率</td>
-                      <td>28.4%</td>
-                      <td>下降</td>
-                    </tr>
-                    <tr>
-                      <td>流失风险</td>
-                      <td>中高</td>
-                      <td>上升</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div className="preview-actions">
-                  <strong>下一步行动</strong>
-                  <p>做 7 天 A/B 对照实验，并按新老用户、付费等级拆分流失画像。</p>
-                  <button type="button">生成行动页</button>
-                </div>
+                <article className="scenario-card scenario-story">
+                  <div className="scenario-label">
+                    <span>03</span>
+                    <strong>图文叙事页</strong>
+                  </div>
+                  <div className="story-layout-preview">
+                    <div className="preview-image-card">
+                      <span>业务场景图</span>
+                    </div>
+                    <div>
+                      <h3>增长质量开始分化</h3>
+                      <p>新用户增长没有同步转化为稳定活跃，需拆解渠道质量和新老用户留存。</p>
+                      <ul>
+                        <li>低价值用户流失更快</li>
+                        <li>高价值用户贡献被动上升</li>
+                        <li>需要按区域和客群拆分</li>
+                      </ul>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="scenario-card scenario-table">
+                  <div className="scenario-label">
+                    <span>04</span>
+                    <strong>表格与行动页</strong>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>事项</th>
+                        <th>优先级</th>
+                        <th>负责人</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>A/B 实验</td>
+                        <td>高</td>
+                        <td>增长组</td>
+                      </tr>
+                      <tr>
+                        <td>流失画像</td>
+                        <td>中</td>
+                        <td>数据组</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="preview-actions">
+                    <strong>下一步行动</strong>
+                    <p>先验证 30% 与 40% AI 内容占比，再决定是否扩大策略。</p>
+                    <button type="button">生成行动页</button>
+                  </div>
+                </article>
               </div>
             </div>
             <div className="token-strip" style={deckThemeStyle}>
