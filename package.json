@@ -2,7 +2,7 @@
   "name": "vizual-studio",
   "private": true,
   "version": "0.1.0",
-  "description": "Vizual 官方应用层：面向商业 HTML PPT 的 AI 协作 Studio，支持品牌风格、可视化内容和批注修订流程。",
+  "description": "Vizual 官方应用层：面向商业 HTML PPT 的 AI 协作 Studio，支持设计风格、可视化内容和批注修订流程。",
   "type": "module",
   "scripts": {
     "dev": "vite",

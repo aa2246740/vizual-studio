@@ -56,8 +56,21 @@ Studio 第一版已采用：
 
 Studio 第一版已采用：
 
-- title/body contentEditable。
-- inspector 中同步输入框。
+- Edit 模式：title/body 在画布内 `contentEditable`，用户可直接打字。
+- 右侧 inspector 以 Typography / Size / Box 组织当前文字块的确定性样式控制。
+- 非 Edit 模式下文字不进入直接编辑，避免误触。
+
+### 3.5 Draw / Click 是空间化批注
+
+Claude Design 的 Draw/Click 价值不在“画线”，而在把视觉位置转成 Agent 可读的目标上下文。
+
+Studio 第一版已采用：
+
+- Draw 模式：在画布上拖拽圈选区域，生成 bbox。
+- Click 模式：点击具体对象，复用当前 target。
+- 底部标注输入条：用户输入修改说明。
+- Queue：多条标注可一次发送给 Agent。
+- 每条任务进入 comment/revision 生命周期，不静默覆盖画布。
 
 ### 4. 评论和 revision 必须有生命周期
 

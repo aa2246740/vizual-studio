@@ -95,7 +95,7 @@ type DeckArtifact = {
 边界：
 
 - 标准 Design.md 是 runtime 输入。
-- 非标准品牌描述不由 runtime 猜测，应由 Agent parser/creator 归一化。
+- 非标准设计描述不由 runtime 猜测，应由 Agent parser/creator 归一化。
 
 ### 4. Review Layer
 

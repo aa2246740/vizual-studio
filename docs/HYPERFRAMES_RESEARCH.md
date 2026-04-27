@@ -79,7 +79,7 @@ Hyperframes 通过 skills 教 Agent 正确写 composition。Vizual/Vizual Studio
 
 ## 后续实验
 
-当 Deck MVP 稳定后，做一个 `Motion Export Spike`：
+当 deck 主流程稳定后，做一个 `Motion Export Spike`：
 
 1. 从当前 HTML slide 生成 10 秒 executive highlight video。
 2. 使用 Design.md motion tokens 控制进入动画。

@@ -39,7 +39,7 @@
 ## CMB Design 素材
 
 - 本地路径：`/Users/wu/Downloads/cmb_design.md`
-- 用途：企业品牌风格测试素材，用来验证 `loadDesignMd()`、动态主题切换、组件矩阵、liveControl。
+- 用途：企业设计风格测试素材，用来验证 `loadDesignMd()`、动态主题切换、组件矩阵、liveControl。
 - 使用方式：作为本地 QA 样本，不默认发布完整原文。
 
 ## 用户提供的 Studio 原型

@@ -22,17 +22,24 @@
   border-bottom: 1px solid var(--studio-border);
   padding: 0 24px;
   display: grid;
-  grid-template-columns: 230px auto minmax(180px, 1fr) auto;
+  grid-template-columns: 230px minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
   background: color-mix(in srgb, var(--studio-surface) 91%, transparent);
   backdrop-filter: blur(18px);
 }
 
+.appbar-editor,
+.appbar-design {
+  grid-template-columns: 210px auto minmax(0, 1fr) auto;
+}
+
 .app-brand,
 .app-nav,
 .project-title,
 .app-actions,
+.context-actions,
+.mode-switch,
 .agent-header,
 .canvas-toolbar,
 .canvas-meta,
@@ -71,8 +78,60 @@
 .app-brand strong,
 .app-brand small,
 .project-title span,
-.project-title strong {
+.project-title strong,
+.context-title span,
+.context-title strong,
+.context-title small {
   display: block;
+}
+
+.home-search {
+  min-width: 0;
+  max-width: 560px;
+  border: 1px solid var(--studio-border);
+  border-radius: 999px;
+  padding: 10px 15px;
+  color: var(--studio-muted);
+  background: color-mix(in srgb, var(--studio-bg) 72%, var(--studio-surface));
+  font-size: 13px;
+}
+
+.back-link {
+  width: fit-content;
+  border: 1px solid transparent;
+  border-radius: max(var(--studio-radius), 8px);
+  padding: 8px 11px;
+  color: var(--studio-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.back-link:hover {
+  color: var(--studio-accent);
+  border-color: color-mix(in srgb, var(--studio-accent) 24%, transparent);
+  background: color-mix(in srgb, var(--studio-accent) 8%, var(--studio-surface));
+}
+
+.context-title {
+  min-width: 0;
+}
+
+.context-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+
+.context-title small {
+  margin-top: 2px;
+}
+
+.context-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .app-nav {
@@ -154,9 +213,9 @@
 }
 
 .app-actions button,
+.context-actions button,
 .agent-header button,
 .agent-tabs button,
-.target-switcher button,
 .thumb,
 .chat-box button,
 .comment-compose button,
@@ -171,12 +230,13 @@
   color: var(--studio-heading);
   background: var(--studio-surface);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .app-actions button:hover,
+.context-actions button:hover,
 .agent-header button:hover,
 .agent-tabs button:hover,
-.target-switcher button:hover,
 .thumb:hover,
 .chat-box button:hover,
 .comment-compose button:hover,
@@ -186,6 +246,12 @@
 .design-page button:hover,
 .rail-head button:hover {
   border-color: color-mix(in srgb, var(--studio-accent) 45%, var(--studio-border));
+}
+
+.context-actions .primary-action {
+  color: #fff;
+  border-color: var(--studio-accent);
+  background: var(--studio-accent);
 }
 
 .home-page,
@@ -232,11 +298,20 @@
 }
 
 .hero-actions {
+  display: grid;
+  grid-template-columns: max-content max-content;
   gap: 12px;
   margin-top: 28px;
 }
 
-.hero-actions button:first-child,
+.hero-actions textarea {
+  grid-column: 1 / -1;
+  max-width: 680px;
+  min-height: 86px;
+  background: color-mix(in srgb, var(--studio-bg) 62%, var(--studio-surface));
+}
+
+.hero-actions button:nth-of-type(1),
 .home-agent-card button,
 .design-slide-preview button,
 .chat-box button {
@@ -472,23 +547,89 @@
   min-width: 0;
   padding: 16px 14px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   gap: 14px;
   overflow: auto;
 }
 
 .canvas-toolbar {
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
   gap: 14px;
 }
 
-.target-switcher {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.mode-switch {
+  flex-shrink: 0;
+  gap: 6px;
+  border: 1px solid var(--studio-border);
+  border-radius: 999px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--studio-surface) 86%, transparent);
 }
 
-.target-switcher button.active,
+.mode-switch button,
+.annotation-mode-tabs button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: var(--studio-muted);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.mode-switch button.active,
+.annotation-mode-tabs button.active {
+  color: #fff;
+  background: var(--studio-accent);
+}
+
+.page-actions {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.page-actions label {
+  flex: 1 1 220px;
+  margin: 0;
+}
+
+.page-actions button {
+  border: 1px solid var(--studio-border);
+  border-radius: max(var(--studio-radius), 8px);
+  padding: 10px 12px;
+  color: var(--studio-heading);
+  background: var(--studio-surface);
+  cursor: pointer;
+}
+
+.page-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.selection-context {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.selection-context span,
+.selection-context small {
+  color: var(--studio-muted);
+  font-size: 12px;
+}
+
+.selection-context strong {
+  color: var(--studio-heading);
+  font-size: 15px;
+}
+
 .agent-tabs button.active {
   color: #fff;
   border-color: var(--studio-accent);
@@ -496,11 +637,11 @@
 }
 
 .canvas-meta {
-  justify-content: flex-end;
-  gap: 10px;
+  display: none;
 }
 
 .slide-canvas {
+  position: relative;
   width: min(100%, 1120px);
   aspect-ratio: 16 / 9;
   min-height: 0;
@@ -516,13 +657,22 @@
   box-shadow: var(--studio-shadow);
 }
 
+.slide-canvas.canvas-mode-draw {
+  cursor: crosshair;
+}
+
+.slide-canvas.canvas-mode-click {
+  cursor: pointer;
+}
+
 .slide-copy {
   width: 100%;
   max-width: 980px;
   min-width: 0;
 }
 
-.slide-canvas h1 {
+.slide-canvas h1,
+.editable-title {
   display: block;
   width: min(100%, 11em);
   max-width: 100%;
@@ -533,6 +683,18 @@
   overflow-wrap: anywhere;
   word-break: break-all;
   white-space: pre-wrap;
+}
+
+.editable-title.selected,
+.editable-body.selected {
+  outline: 2px solid color-mix(in srgb, var(--studio-accent) 86%, #3b82f6);
+  outline-offset: 6px;
+  background: color-mix(in srgb, var(--studio-accent) 7%, transparent);
+}
+
+.canvas-mode-edit .editable-title,
+.canvas-mode-edit .editable-body {
+  cursor: text;
 }
 
 .editable-body {
@@ -629,6 +791,15 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--studio-accent) 14%, transparent);
 }
 
+.draw-rect {
+  position: absolute;
+  z-index: 8;
+  border: 3px solid #ef4444;
+  border-radius: 16px;
+  background: rgba(239, 68, 68, 0.08);
+  pointer-events: none;
+}
+
 .slide-canvas footer {
   justify-content: space-between;
   gap: 16px;
@@ -650,8 +821,80 @@
 
 .speaker-notes span {
   color: var(--studio-muted);
+}
+
+.annotation-composer {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  border: 1px solid var(--studio-border);
+  border-radius: max(var(--studio-radius), 14px);
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  background: color-mix(in srgb, var(--studio-surface) 92%, transparent);
+  box-shadow: var(--studio-shadow-soft);
+}
+
+.annotation-mode-tabs,
+.annotation-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.annotation-mode-tabs {
+  align-self: start;
+  border: 1px solid var(--studio-border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.annotation-composer textarea {
+  grid-column: 1 / -1;
+  min-height: 48px;
+}
+
+.annotation-actions,
+.annotation-queue {
+  grid-column: 1 / -1;
+}
+
+.annotation-actions {
+  justify-content: flex-end;
+}
+
+.annotation-actions button,
+.annotation-queue {
+  border: 1px solid var(--studio-border);
+  border-radius: max(var(--studio-radius), 10px);
+  padding: 9px 12px;
+  background: var(--studio-surface);
+}
+
+.annotation-actions .primary-action {
+  color: #fff;
+  border-color: var(--studio-accent);
+  background: var(--studio-accent);
+}
+
+.annotation-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.annotation-queue {
+  display: grid;
+  gap: 4px;
+  max-height: 92px;
+  overflow: auto;
+  color: var(--studio-muted);
   font-size: 12px;
-  font-weight: 750;
+}
+
+.annotation-queue strong {
+  color: var(--studio-heading);
 }
 
 .agent-panel {
@@ -731,7 +974,8 @@
 .message.task span,
 .chat-box span,
 .tweak-target {
-  display: block;
+  display: grid;
+  gap: 4px;
 }
 
 .message.task strong {
@@ -742,7 +986,7 @@
 
 .message.task span,
 .chat-box span,
-.tweak-target {
+.tweak-target > span {
   color: var(--studio-muted);
   font-size: 12px;
 }
@@ -759,6 +1003,39 @@
   border-radius: max(var(--studio-radius), 8px);
   padding: 10px 12px;
   background: color-mix(in srgb, var(--studio-accent) 6%, var(--studio-surface));
+}
+
+.tweak-target strong {
+  color: var(--studio-heading);
+  font-size: 15px;
+}
+
+.tweak-target span,
+.inspector-group p {
+  color: var(--studio-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.inspector-group {
+  border-top: 1px solid var(--studio-border);
+  padding-top: 14px;
+  margin-top: 14px;
+}
+
+.inspector-group h3 {
+  margin: 0 0 12px;
+  color: var(--studio-muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 label {
@@ -861,6 +1138,45 @@ input[type='color'] {
   margin: 0;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.style-preset-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.style-preset-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  text-align: left;
+}
+
+.style-preset-list button.active {
+  border-color: var(--studio-accent);
+  background: color-mix(in srgb, var(--studio-accent) 7%, var(--studio-surface));
+}
+
+.style-preset-list i {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--studio-border);
+  border-radius: 50%;
+}
+
+.style-preset-list strong,
+.style-preset-list small {
+  display: block;
+}
+
+.style-preset-list small {
+  margin-top: 3px;
+  color: var(--studio-muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .color-grid {
@@ -982,6 +1298,11 @@ input[type='color'] {
 @media (max-width: 1180px) {
   .appbar {
     grid-template-columns: 210px auto 1fr;
+  }
+
+  .appbar-editor,
+  .appbar-design {
+    grid-template-columns: 190px auto minmax(0, 1fr) auto;
   }
 
   .project-title {

@@ -13,7 +13,7 @@
 - Deck-first Studio shell。
 - docs: product definition, architecture, core gaps, agent handoff。
 
-## Milestone 1: Deck MVP
+## Milestone 1: 可交付 v0.1
 
 目标：一个真实用户可以打开 Studio，做出一份可展示的 HTML deck 初稿。
 
@@ -117,4 +117,4 @@ PPTX 不是第一阶段主路径。
 - Hyperframes lint/render pipeline research。
 - optional video export prototype。
 
-不在 PPT MVP 阻塞路径上。
+不在 PPT 主线阻塞路径上。

@@ -16,14 +16,14 @@ Vizual Studio 是用户真正工作的地方。它要解决的不是“画一个
 
 ## 核心用户旅程
 
-### 1. 建立品牌底座
+### 1. 建立设计风格底座
 
-用户或 Agent 提供标准 Design.md。Studio 通过 liveControl 暴露关键参数，让用户能调品牌色、背景、表面、圆角、阴影、密度、动效。
+用户或 Agent 提供标准 Design.md。Studio 通过 liveControl 暴露关键参数，让用户能调设计主色、背景、表面、圆角、阴影、密度、动效。
 
 原则：
 
 - Runtime 只保证标准 Design.md 的确定性解析。
-- 非标准品牌描述由 Agent-side parser/creator 先归一化。
+- 非标准设计描述由 Agent-side parser/creator 先归一化。
 - 用户调参应该实时影响 Vizual preview 和 deck canvas。
 
 ### 2. 生成 deck 初稿

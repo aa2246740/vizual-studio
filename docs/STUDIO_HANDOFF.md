@@ -14,11 +14,12 @@ Vizual Studio 是面向内部种子用户的 AI 协作式商业 PPT 平台。它
 - 首页：模板入口、最近项目、从模板开始。
 - 16:9 HTML slide 工作台。
 - 左侧页面缩略图、中央画布、右侧 Agent 协作面板。
-- 文字直接编辑。
+- Edit 模式：文字块可直接在画布上编辑。
+- Draw / Click 模式：画布标注、底部说明输入、Queue 批量提交给 Agent。
 - 图片占位块：支持风格、缩放和横向裁剪感微调。
 - VizualRenderer 嵌入 KPI、图表、表格。
-- 品牌风格页：用普通用户语言调整品牌色、背景、版面、文字、圆角、密度和动效，内部基于 `loadDesignMd()` 应用到 Vizual runtime。
-- 基础 liveControl：整页、标题、正文、图表、图片都有独立微调入口。
+- 设计风格页：用普通用户语言调整设计主色、背景、版面、文字、圆角、密度和动效，内部基于 `loadDesignMd()` 应用到 Vizual runtime。
+- 基础 liveControl：当前选中对象拥有 Typography / Size / Box 属性面板，图表和图片有专属展示参数。
 - 批注/修订雏形：用户提交目标化修改，Agent 可通过 `window.VizualStudio.applyAgentAction()` 写回。
 - 本地 `localStorage` 保存项目状态。
 - HTML handoff 与浏览器打印/PDF 的基础出口。
@@ -27,7 +28,7 @@ Vizual Studio 是面向内部种子用户的 AI 协作式商业 PPT 平台。它
 ## 明确未做
 
 - 项目中心、团队空间、搜索、权限、分享还未做成完整工作流。
-- 品牌风格导入/导出、完整 token matrix、风格版本库尚未完整产品化。
+- 设计风格导入/导出、完整 token matrix、风格版本库尚未完整产品化。
 - 真正的 block-level target map：当前对象定位还偏 UI 状态，不是稳定 artifact target。
 - 完整批注循环：需要和 Core 的 generic Review/Revision 协议对齐。
 - 完整版本历史和可回滚 diff。
