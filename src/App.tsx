@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type PointerEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type PointerEvent } from 'react'
 import { VizualRenderer, loadDesignMd, type ThemeMappingReport, type VizualSpec } from 'vizual'
 import './App.css'
 
@@ -463,6 +463,18 @@ function buildBrandGuide(controls: DesignControls) {
 `
 }
 
+function buildDeckThemeStyle(controls: DesignControls): CSSProperties {
+  return {
+    '--studio-bg': controls.background,
+    '--studio-surface': controls.surface,
+    '--studio-text': controls.text,
+    '--studio-heading': controls.text,
+    '--studio-muted': controls.muted,
+    '--studio-accent': controls.accent,
+    '--studio-radius': `${controls.radius}px`,
+  } as CSSProperties
+}
+
 function loadStoredProject(): Partial<StoredProject> {
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (!raw) return {}
@@ -825,6 +837,7 @@ function App() {
   const designControls = activeDesignStyle.controls
   const targetRefs = useMemo(() => slides.flatMap((slide) => buildTargetRefs(slide)), [slides])
   const activeScreenLabel = `${String(activeSlideIndex + 1).padStart(2, '0')} ${activeSlide.title.replace(/\s+/g, ' ').slice(0, 42)}`
+  const deckThemeStyle = useMemo(() => buildDeckThemeStyle(designControls), [designControls])
   const activeSpec = useMemo(() => buildVizualSpec(activeSlide), [activeSlide])
   const selectedStyle = useMemo(
     () => resolveElementStyle(activeSlide, selectedTarget, designControls),
@@ -1325,16 +1338,6 @@ function App() {
   }
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--studio-bg', designControls.background)
-    document.documentElement.style.setProperty('--studio-surface', designControls.surface)
-    document.documentElement.style.setProperty('--studio-text', designControls.text)
-    document.documentElement.style.setProperty('--studio-heading', designControls.text)
-    document.documentElement.style.setProperty('--studio-muted', designControls.muted)
-    document.documentElement.style.setProperty('--studio-accent', designControls.accent)
-    document.documentElement.style.setProperty('--studio-radius', `${designControls.radius}px`)
-  }, [designControls])
-
-  useEffect(() => {
     const project: StoredProject = {
       view,
       projectTitle,
@@ -1438,9 +1441,9 @@ function App() {
               <div className="mode-switch appbar-mode-switch" aria-label="画布模式">
                 {[
                   ['select', '选择'],
-                  ['edit', 'Edit'],
-                  ['draw', 'Draw'],
-                  ['click', 'Click'],
+                  ['edit', '编辑'],
+                  ['draw', '圈画'],
+                  ['click', '点选'],
                 ].map(([mode, label]) => (
                   <button
                     className={canvasMode === mode ? 'active' : ''}
@@ -1725,18 +1728,75 @@ function App() {
                 标准映射 {themeReport?.mappedCount ?? 0}/{themeReport?.tokenCount ?? 0} · {themeReport?.qualityScore ?? 0}分
               </div>
             </div>
-            <div className="design-slide-preview">
-              <div>
-                <p className="eyebrow">{designControls.styleName}</p>
-                <h2>设计一致的经营汇报页面</h2>
-                <p>图表、按钮、卡片和文字都会跟随同一份标准风格源变化。</p>
-                <button type="button">主要行动</button>
+            <div className="design-slide-preview" style={deckThemeStyle}>
+              <div className="preview-slide-header">
+                <div>
+                  <p className="eyebrow">{designControls.styleName}</p>
+                  <h2>经营复盘汇报</h2>
+                  <p>用于验证标题、正文、指标、图表、表格、图片占位和行动建议是否都继承当前设计风格。</p>
+                </div>
+                <span>01 / 12</span>
               </div>
-              <div className="preview-viz">
-                <VizualRenderer spec={buildVizualSpec({ ...activeSlide, visual: 'combo', visualHeight: 260 })} />
+
+              <div className="preview-kpi-row">
+                {[
+                  ['收入', '1.16M', '-4.8%'],
+                  ['活跃用户', '46k', '-16.4%'],
+                  ['ARPPU', '4.1', '+36.7%'],
+                ].map(([label, value, trend]) => (
+                  <div className="preview-kpi-card" key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                    <small>{trend}</small>
+                  </div>
+                ))}
+              </div>
+
+              <div className="preview-content-grid">
+                <div className="preview-viz">
+                  <VizualRenderer spec={buildVizualSpec({ ...activeSlide, visual: 'combo', visualHeight: 260 })} />
+                </div>
+                <div className="preview-side-stack">
+                  <div className="preview-image-card">
+                    <span>业务场景图</span>
+                  </div>
+                  <div className="preview-callout">
+                    <strong>核心结论</strong>
+                    <p>收入下降主要来自用户规模收缩，ARPPU 上升可能是筛选效应，不能直接视为产品改善。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="preview-bottom-grid">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>指标</th>
+                      <th>当前</th>
+                      <th>趋势</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>转化效率</td>
+                      <td>28.4%</td>
+                      <td>下降</td>
+                    </tr>
+                    <tr>
+                      <td>流失风险</td>
+                      <td>中高</td>
+                      <td>上升</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="preview-actions">
+                  <strong>下一步行动</strong>
+                  <p>做 7 天 A/B 对照实验，并按新老用户、付费等级拆分流失画像。</p>
+                  <button type="button">生成行动页</button>
+                </div>
               </div>
             </div>
-            <div className="token-strip">
+            <div className="token-strip" style={deckThemeStyle}>
               {[
                 ['主色', designControls.accent],
                 ['背景', designControls.background],
@@ -1789,11 +1849,11 @@ function App() {
                   <strong>{selectedTarget}</strong>
                   <small>
                     {canvasMode === 'edit'
-                      ? 'Edit 模式：文字可直接在画布上改'
+                      ? '编辑模式：文字可直接在画布上改'
                       : canvasMode === 'draw'
-                        ? 'Draw 模式：拖拽圈选区域并写修改说明'
+                        ? '圈画模式：拖拽圈选区域并写修改说明'
                         : canvasMode === 'click'
-                          ? 'Click 模式：点选元素并写修改说明'
+                          ? '点选模式：点选元素并写修改说明'
                           : '点击画布中的标题、正文、图表或图片即可切换'}
                   </small>
                 </div>
@@ -1828,6 +1888,7 @@ function App() {
                 data-screen-label={activeScreenLabel}
                 data-slide-id={activeSlide.id}
                 data-target-ref={targetRefFor(activeSlide.id, '整页')}
+                style={deckThemeStyle}
                 onClick={() => handleTargetSelect('整页')}
                 onPointerDown={handleCanvasPointerDown}
                 onPointerMove={handleCanvasPointerMove}
@@ -1974,10 +2035,10 @@ function App() {
                 <div className="annotation-composer">
                   <div className="annotation-mode-tabs">
                     <button className={canvasMode === 'draw' ? 'active' : ''} type="button" onClick={() => selectCanvasMode('draw')}>
-                      Draw ⌘1
+                      圈画 ⌘1
                     </button>
                     <button className={canvasMode === 'click' ? 'active' : ''} type="button" onClick={() => selectCanvasMode('click')}>
-                      Click ⌘2
+                      点选 ⌘2
                     </button>
                   </div>
                   <textarea
@@ -1999,7 +2060,7 @@ function App() {
                     </button>
                   </div>
                   <div className="annotation-queue">
-                    <strong>Queue {annotationQueue.length}</strong>
+                    <strong>队列 {annotationQueue.length}</strong>
                     {annotationQueue.slice(0, 4).map((task) => (
                       <span key={task.id}>
                         {task.mode === 'draw' ? '手绘' : '点击'} · {task.target}：{task.instruction}
@@ -2073,14 +2134,14 @@ function App() {
               <section className="agent-section tweak-section">
                 <div className="tweak-target">
                   <strong>{selectedTarget}</strong>
-                  <span>{canvasMode === 'edit' ? 'Edit 模式下可直接在画布打字，右侧负责精确样式。' : '手动微调只作用于当前选中对象。'}</span>
+                  <span>{canvasMode === 'edit' ? '编辑模式下可直接在画布打字，右侧负责精确样式。' : '手动微调只作用于当前选中对象。'}</span>
                 </div>
 
                 {(selectedTarget === '标题' || selectedTarget === '正文') && (
                   <div className="inspector-group">
-                    <h3>Typography</h3>
+                    <h3>文字排版</h3>
                     <label>
-                      Font
+                      字体
                       <select value={selectedStyle.font} onChange={(event) => updateElementStyle(selectedTarget, { font: event.target.value })}>
                         <option value="Inter / Microsoft YaHei">Inter / 微软雅黑</option>
                         <option value="Noto Sans SC">Noto Sans SC</option>
@@ -2090,17 +2151,17 @@ function App() {
                     </label>
                     <div className="field-grid">
                       <label>
-                        Size
+                        字号
                         <input type="number" value={selectedStyle.size} onChange={(event) => updateElementStyle(selectedTarget, { size: Number(event.target.value) })} />
                       </label>
                       <label>
-                        Weight
+                        字重
                         <input type="number" step="50" value={selectedStyle.weight} onChange={(event) => updateElementStyle(selectedTarget, { weight: Number(event.target.value) })} />
                       </label>
                     </div>
                     <div className="field-grid">
                       <label>
-                        Color
+                        颜色
                         <input
                           type="color"
                           value={selectedStyle.color}
@@ -2109,21 +2170,21 @@ function App() {
                         />
                       </label>
                       <label>
-                        Align
+                        对齐
                         <select value={selectedStyle.align} onChange={(event) => updateElementStyle(selectedTarget, { align: event.target.value as ElementStyle['align'] })}>
-                          <option value="left">left</option>
-                          <option value="center">center</option>
-                          <option value="right">right</option>
+                          <option value="left">左对齐</option>
+                          <option value="center">居中</option>
+                          <option value="right">右对齐</option>
                         </select>
                       </label>
                     </div>
                     <div className="field-grid">
                       <label>
-                        Line
+                        行距
                         <input type="number" min="0.8" max="2.4" step="0.02" value={selectedStyle.line} onChange={(event) => updateElementStyle(selectedTarget, { line: Number(event.target.value) })} />
                       </label>
                       <label>
-                        Tracking
+                        字间距
                         <input type="number" step="0.2" value={selectedStyle.tracking} onChange={(event) => updateElementStyle(selectedTarget, { tracking: Number(event.target.value) })} />
                       </label>
                     </div>
@@ -2139,7 +2200,7 @@ function App() {
 
                 {selectedTarget === '图表' && (
                   <div className="inspector-group">
-                    <h3>Chart</h3>
+                    <h3>图表</h3>
                     <label>
                       图表类型
                       <select value={activeSlide.visual} onChange={(event) => updateSlide(activeSlide.id, { visual: event.target.value as SlideVisual })}>
@@ -2155,7 +2216,7 @@ function App() {
 
                 {selectedTarget === '图片' && (
                   <div className="inspector-group">
-                    <h3>Image</h3>
+                    <h3>图片</h3>
                     <label>
                       图片风格
                       <select value={activeSlide.imageTone} onChange={(event) => updateSlide(activeSlide.id, { imageTone: event.target.value as ImageTone })}>
@@ -2166,11 +2227,11 @@ function App() {
                     </label>
                     <div className="field-grid">
                       <label>
-                        Zoom
+                        缩放
                         <input type="number" value={activeSlide.imageZoom} onChange={(event) => updateSlide(activeSlide.id, { imageZoom: Number(event.target.value) })} />
                       </label>
                       <label>
-                        X
+                        水平位置
                         <input type="number" value={activeSlide.imageX} onChange={(event) => updateSlide(activeSlide.id, { imageX: Number(event.target.value) })} />
                       </label>
                     </div>
@@ -2179,7 +2240,7 @@ function App() {
 
                 {selectedTarget === '整页' && (
                   <div className="inspector-group">
-                    <h3>Design Style</h3>
+                    <h3>设计风格</h3>
                     <label>
                       设计主色
                       <input
@@ -2210,43 +2271,43 @@ function App() {
                 )}
 
                 <div className="inspector-group">
-                  <h3>Size</h3>
+                  <h3>尺寸</h3>
                   <div className="field-grid">
                     <label>
-                      Width
+                      宽度
                       <input type="number" value={selectedStyle.width} onChange={(event) => updateElementStyle(selectedTarget, { width: Number(event.target.value) })} />
                     </label>
                     <label>
-                      Height
+                      高度
                       <input type="number" value={selectedStyle.height} onChange={(event) => updateElementStyle(selectedTarget, { height: Number(event.target.value) })} />
                     </label>
                   </div>
                 </div>
 
                 <div className="inspector-group">
-                  <h3>Box</h3>
+                  <h3>容器</h3>
                   <div className="field-grid">
                     <label>
-                      Opacity
+                      透明度
                       <input type="number" min="0" max="1" step="0.05" value={selectedStyle.opacity} onChange={(event) => updateElementStyle(selectedTarget, { opacity: Number(event.target.value) })} />
                     </label>
                     <label>
-                      Padding
+                      内边距
                       <input type="number" value={selectedStyle.padding} onChange={(event) => updateElementStyle(selectedTarget, { padding: Number(event.target.value) })} />
                     </label>
                   </div>
                   <div className="field-grid">
                     <label>
-                      Margin
+                      外边距
                       <input type="number" value={selectedStyle.margin} onChange={(event) => updateElementStyle(selectedTarget, { margin: Number(event.target.value) })} />
                     </label>
                     <label>
-                      Border
+                      边框
                       <input type="number" value={selectedStyle.border} onChange={(event) => updateElementStyle(selectedTarget, { border: Number(event.target.value) })} />
                     </label>
                   </div>
                   <label>
-                    Radius
+                    圆角
                     <input type="number" value={selectedStyle.radius} onChange={(event) => updateElementStyle(selectedTarget, { radius: Number(event.target.value) })} />
                   </label>
                 </div>

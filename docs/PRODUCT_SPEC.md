@@ -290,7 +290,7 @@ Vizual Studio 的完整产品由六层组成：
 - 显示产品名。
 - 显示当前项目名。
 - 显示页面数量、当前设计风格、确认进度和待处理批注。
-- 提供 Edit / Draw / Click / 选择模式。
+- 提供选择 / 编辑 / 圈画 / 点选模式。
 - 提供设计风格入口。
 
 设计原则：
@@ -356,9 +356,9 @@ Vizual Studio 的完整产品由六层组成：
 顶部工具模式：
 
 - 选择：默认浏览和选中对象。
-- Edit：文字对象可直接在画布上像 Word 一样编辑。
-- Draw：用手绘区域标注告诉 Agent 要改哪里。
-- Click：点选具体对象并把说明加入标注队列。
+- 编辑：文字对象可直接在画布上像 Word 一样编辑。
+- 圈画：用手绘区域标注告诉 Agent 要改哪里。
+- 点选：点选具体对象并把说明加入标注队列。
 
 ## 8.3 Agent 协作流
 
@@ -385,7 +385,7 @@ Vizual Studio 的完整产品由六层组成：
 - 系统把请求记录为 open task，并显示在协作流顶部。
 - 页面触发 `vizual-studio:comment-added` 事件，供内部 Agent 监听。
 - “处理待办”可以模拟 Agent 消费这些请求并生成修订。
-- Draw/Click 模式支持底部标注输入条和 Queue，一次提交多条带 target/bbox 的修改任务。
+- 圈画/点选模式支持底部标注输入条和队列，一次提交多条带 target/bbox 的修改任务。
 
 ### 后续正式能力
 
@@ -425,16 +425,16 @@ Vizual Studio 的完整产品由六层组成：
 
 标题：
 
-- Typography：Font、Size、Weight、Color、Align、Line、Tracking。
-- Size：Width、Height。
-- Box：Opacity、Padding、Margin、Border、Radius。
+- 文字排版：字体、字号、字重、颜色、对齐、行距、字间距。
+- 尺寸：宽度、高度。
+- 容器：透明度、内边距、外边距、边框、圆角。
 - 换行约束：允许换行 / 保持单行。
 
 正文：
 
-- Typography：Font、Size、Weight、Color、Align、Line、Tracking。
-- Size：Width、Height。
-- Box：Opacity、Padding、Margin、Border、Radius。
+- 文字排版：字体、字号、字重、颜色、对齐、行距、字间距。
+- 尺寸：宽度、高度。
+- 容器：透明度、内边距、外边距、边框、圆角。
 - 换行约束：允许换行 / 保持单行。
 
 图表：
@@ -448,7 +448,7 @@ Vizual Studio 的完整产品由六层组成：
 - 图片风格。
 - 缩放。
 - 横向位置。
-- Size / Box 基础参数。
+- 尺寸 / 容器基础参数。
 
 ### 设计原则
 
