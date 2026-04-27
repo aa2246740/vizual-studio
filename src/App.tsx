@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { VizualRenderer, loadDesignMd, type VizualSpec } from 'vizual'
 import './App.css'
 
-type AgentTab = 'chat' | 'tweak' | 'comment' | 'history'
+type AgentTab = 'collab' | 'tweak' | 'history'
 type SelectedTarget = '整页' | '标题' | '正文' | '图表'
 
 type DesignControls = {
@@ -30,6 +30,13 @@ type Slide = {
   title: string
   body: string
   speakerNote: string
+  titleWidth: number
+  titleSize: number
+  titleWrap: 'wrap' | 'nowrap'
+  bodyWidth: number
+  bodySize: number
+  bodyWrap: 'wrap' | 'nowrap'
+  visualHeight: number
 }
 
 type ReviewComment = {
@@ -87,7 +94,7 @@ declare global {
   }
 }
 
-const STORAGE_KEY = 'vizual-studio:ppt-product-zh-v3'
+const STORAGE_KEY = 'vizual-studio:ppt-product-zh-v4'
 
 const initialDesign: DesignControls = {
   brandName: 'CMB 策略分析台',
@@ -111,6 +118,13 @@ const initialSlides: Slide[] = [
     title: '2026 Q1\n经营分析汇报',
     body: '面向管理层的业务趋势、风险信号与下一步行动建议。',
     speakerNote: '开场说明：本 deck 展示业务结果、增长质量和行动建议。',
+    titleWidth: 58,
+    titleSize: 54,
+    titleWrap: 'wrap',
+    bodyWidth: 72,
+    bodySize: 20,
+    bodyWrap: 'wrap',
+    visualHeight: 280,
   },
   {
     id: 'growth-quality',
@@ -121,6 +135,13 @@ const initialSlides: Slide[] = [
     title: '收入下滑主要来自活跃用户减少',
     body: 'Day 8 后活跃用户下降，同时 ARPPU 上升，说明高价值用户留存但用户规模承压。',
     speakerNote: '强调 ARPPU 上升可能是筛选效应，不能单独证明产品变好。',
+    titleWidth: 72,
+    titleSize: 38,
+    titleWrap: 'wrap',
+    bodyWidth: 76,
+    bodySize: 18,
+    bodyWrap: 'wrap',
+    visualHeight: 260,
   },
   {
     id: 'revenue-trend',
@@ -131,6 +152,13 @@ const initialSlides: Slide[] = [
     title: '增长率先于收入出现拐点',
     body: '组合图同时呈现收入规模和增长率，帮助识别 Day 5-7 的斜率变化。',
     speakerNote: '提示管理层关注增长率滞后传导到收入的风险。',
+    titleWidth: 72,
+    titleSize: 38,
+    titleWrap: 'wrap',
+    bodyWidth: 76,
+    bodySize: 18,
+    bodyWrap: 'wrap',
+    visualHeight: 280,
   },
   {
     id: 'appendix',
@@ -141,6 +169,13 @@ const initialSlides: Slide[] = [
     title: '关键指标明细',
     body: '保留原始指标，方便追溯图表结论和后续导出。',
     speakerNote: '附录用于支撑问答，不一定进入正式汇报。',
+    titleWidth: 72,
+    titleSize: 38,
+    titleWrap: 'wrap',
+    bodyWidth: 76,
+    bodySize: 18,
+    bodyWrap: 'wrap',
+    visualHeight: 300,
   },
 ]
 
@@ -174,7 +209,7 @@ const initialAgentMessages: AgentMessage[] = [
   {
     id: 'm1',
     role: 'agent',
-    text: '我已生成一版经营分析 PPT。你可以直接改文字，也可以选中页面元素后批注或微调。',
+    text: '我已生成一版经营分析 PPT。你可以直接改文字，也可以选中页面元素后把修改要求提交给我，或用微调控制当前对象。',
   },
 ]
 
@@ -285,7 +320,7 @@ function buildVizualSpec(slide: Slide): VizualSpec {
             x: 'day',
             y: 'active',
             data: revenueData,
-            height: 260,
+            height: slide.visualHeight,
           },
         },
       },
@@ -327,7 +362,7 @@ function buildVizualSpec(slide: Slide): VizualSpec {
           x: 'day',
           y: ['revenue', 'growth'],
           data: revenueData,
-          height: 320,
+          height: slide.visualHeight,
         },
       },
     },
@@ -391,7 +426,7 @@ function downloadText(filename: string, content: string) {
 
 function App() {
   const stored = useMemo(() => loadStoredProject(), [])
-  const [agentTab, setAgentTab] = useState<AgentTab>('chat')
+  const [agentTab, setAgentTab] = useState<AgentTab>('collab')
   const [designControls, setDesignControls] = useState(stored.designControls ?? initialDesign)
   const [slides, setSlides] = useState(stored.slides ?? initialSlides)
   const [comments, setComments] = useState(stored.comments ?? initialComments)
@@ -399,8 +434,7 @@ function App() {
   const [agentMessages, setAgentMessages] = useState(stored.agentMessages ?? initialAgentMessages)
   const [activeSlideId, setActiveSlideId] = useState(slides[0].id)
   const [selectedTarget, setSelectedTarget] = useState<SelectedTarget>('整页')
-  const [commentDraft, setCommentDraft] = useState('')
-  const [chatDraft, setChatDraft] = useState('')
+  const [collabDraft, setCollabDraft] = useState('')
 
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? slides[0]
   const activeSpec = useMemo(() => buildVizualSpec(activeSlide), [activeSlide])
@@ -469,68 +503,28 @@ function App() {
     updateSlide(activeSlide.id, { [key]: event.currentTarget.textContent ?? '' })
   }
 
-  function addComment() {
-    if (!commentDraft.trim()) return
+  function submitAgentRequest() {
+    if (!collabDraft.trim()) return
+    const prompt = collabDraft.trim()
     const comment: ReviewComment = {
       id: `c${Date.now()}`,
       slideId: activeSlide.id,
       target: selectedTarget,
-      request: commentDraft.trim(),
+      request: prompt,
       status: 'open',
     }
     setComments((current) => [comment, ...current])
     setAgentMessages((current) => [
       ...current,
-      { id: `m${Date.now()}`, role: 'user', text: `批注 ${comment.target}：${comment.request}` },
+      { id: `m${Date.now()}`, role: 'user', text: `修改【${comment.target}】：${comment.request}` },
+      {
+        id: `m${Date.now() + 1}`,
+        role: 'agent',
+        text: '已收到这条带对象定位的修改要求。内部 Agent 可以监听批注事件，或点击“处理待办”生成修订。',
+      },
     ])
     window.dispatchEvent(new CustomEvent('vizual-studio:comment-added', { detail: comment }))
-    setCommentDraft('')
-  }
-
-  function sendChat() {
-    if (!chatDraft.trim()) return
-    const prompt = chatDraft.trim()
-    setAgentMessages((current) => [...current, { id: `m${Date.now()}`, role: 'user', text: prompt }])
-    setChatDraft('')
-
-    const lower = prompt.toLowerCase()
-    if (prompt.includes('折线') || lower.includes('line')) {
-      applyAgentAction({
-        type: 'replaceVisual',
-        visual: 'line',
-        summary: '根据对话请求，Agent 已将当前可视化切换为折线图。',
-      })
-      setAgentMessages((current) => [...current, { id: `m${Date.now() + 1}`, role: 'agent', text: '已改成折线趋势图，并保留原始数据口径。' }])
-      return
-    }
-
-    if (prompt.includes('明细') || prompt.includes('表格')) {
-      applyAgentAction({
-        type: 'updateSlide',
-        patch: { visual: 'table', layout: 'appendix', status: 'review' },
-        summary: '根据对话请求，Agent 已将当前页改为明细附录。',
-      })
-      setAgentMessages((current) => [...current, { id: `m${Date.now() + 1}`, role: 'agent', text: '已切换为明细表格页，方便追溯数据。' }])
-      return
-    }
-
-    if (prompt.includes('结论') || prompt.includes('详细')) {
-      applyAgentAction({
-        type: 'updateSlide',
-        patch: {
-          body: `${activeSlide.body} 建议先做 7 天 A/B 对照，并补充分群分析，避免把时间趋势误判为因果关系。`,
-          status: 'review',
-        },
-        summary: '根据对话请求，Agent 已补充管理层结论。',
-      })
-      setAgentMessages((current) => [...current, { id: `m${Date.now() + 1}`, role: 'agent', text: '已补充更具体的管理层建议，并保留因果风险提示。' }])
-      return
-    }
-
-    setAgentMessages((current) => [
-      ...current,
-      { id: `m${Date.now() + 1}`, role: 'agent', text: '我已收到。内部版可以通过右侧批注或 DevTools 桥接让我对具体对象做修订。' },
-    ])
+    setCollabDraft('')
   }
 
   function resolveOpenComments() {
@@ -540,6 +534,9 @@ function App() {
     pending.forEach((comment) => {
       if (comment.target === '图表') {
         updateSlide(comment.slideId, { visual: 'combo', status: 'review' })
+      }
+      if (comment.target === '标题' && /不换行|不要换行|单行|一行/.test(comment.request)) {
+        updateSlide(comment.slideId, { titleWrap: 'nowrap', titleWidth: 92, titleSize: 32, status: 'review' })
       }
       if (comment.target === '正文') {
         const targetSlide = slides.find((slide) => slide.id === comment.slideId)
@@ -553,8 +550,8 @@ function App() {
     })
 
     setComments((current) => current.map((comment) => (comment.status === 'open' ? { ...comment, status: 'resolved' } : comment)))
-    addRevision(`Agent 已处理 ${pending.length} 条未完成批注。`, '批注队列', 'accepted')
-    setAgentMessages((current) => [...current, { id: `m${Date.now()}`, role: 'agent', text: `我处理了 ${pending.length} 条批注，并生成了修订记录。` }])
+    addRevision(`Agent 已处理 ${pending.length} 条带对象定位的修改要求。`, '协作待办', 'accepted')
+    setAgentMessages((current) => [...current, { id: `m${Date.now()}`, role: 'agent', text: `我处理了 ${pending.length} 条待办，并生成了修订记录。` }])
   }
 
   function setRevisionStatus(id: string, status: Revision['status']) {
@@ -674,6 +671,13 @@ function App() {
                 <h1
                   contentEditable
                   suppressContentEditableWarning
+                  style={{
+                    width: `${activeSlide.titleWidth}%`,
+                    fontSize: `${activeSlide.titleSize}px`,
+                    whiteSpace: activeSlide.titleWrap === 'nowrap' ? 'nowrap' : 'pre-wrap',
+                    overflowWrap: activeSlide.titleWrap === 'nowrap' ? 'normal' : 'anywhere',
+                    wordBreak: activeSlide.titleWrap === 'nowrap' ? 'keep-all' : 'break-all',
+                  }}
                   onBlur={(event) => handleInlineText('title', event)}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -686,6 +690,13 @@ function App() {
                   className="editable-body"
                   contentEditable
                   suppressContentEditableWarning
+                  style={{
+                    width: `${activeSlide.bodyWidth}%`,
+                    fontSize: `${activeSlide.bodySize}px`,
+                    whiteSpace: activeSlide.bodyWrap === 'nowrap' ? 'nowrap' : 'normal',
+                    overflowWrap: activeSlide.bodyWrap === 'nowrap' ? 'normal' : 'anywhere',
+                    wordBreak: activeSlide.bodyWrap === 'nowrap' ? 'keep-all' : 'break-all',
+                  }}
                   onBlur={(event) => handleInlineText('body', event)}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -698,6 +709,7 @@ function App() {
               {activeSlide.layout !== 'cover' && (
                 <div
                   className={selectedTarget === '图表' ? 'slide-viz selected' : 'slide-viz'}
+                  style={{ minHeight: activeSlide.visualHeight }}
                   onClick={(event) => {
                     event.stopPropagation()
                     setSelectedTarget('图表')
@@ -730,15 +742,14 @@ function App() {
               <span>当前对象：{selectedTarget}</span>
             </div>
             <button type="button" onClick={resolveOpenComments}>
-              处理批注
+              处理待办
             </button>
           </div>
 
           <div className="agent-tabs">
             {[
-              ['chat', '对话'],
+              ['collab', '协作'],
               ['tweak', '微调'],
-              ['comment', '批注'],
               ['history', '版本'],
             ].map(([key, label]) => (
               <button
@@ -752,9 +763,15 @@ function App() {
             ))}
           </div>
 
-          {agentTab === 'chat' && (
+          {agentTab === 'collab' && (
             <section className="agent-section chat-section">
               <div className="message-list">
+                {openComments.map((comment) => (
+                  <article className="message task" key={comment.id}>
+                    <strong>{comment.slideId} · {comment.target}</strong>
+                    <span>{comment.request}</span>
+                  </article>
+                ))}
                 {agentMessages.map((message) => (
                   <article className={`message ${message.role}`} key={message.id}>
                     {message.text}
@@ -762,9 +779,15 @@ function App() {
                 ))}
               </div>
               <div className="chat-box">
-                <textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} rows={3} />
-                <button type="button" onClick={sendChat}>
-                  发送
+                <span>提交给 Agent 修改：{selectedTarget}</span>
+                <textarea
+                  value={collabDraft}
+                  onChange={(event) => setCollabDraft(event.target.value)}
+                  placeholder="例如：这个标题不要换行；这张图改成组合图并强调拐点"
+                  rows={3}
+                />
+                <button type="button" onClick={submitAgentRequest}>
+                  提交给 Agent
                 </button>
               </div>
             </section>
@@ -772,84 +795,136 @@ function App() {
 
           {agentTab === 'tweak' && (
             <section className="agent-section tweak-section">
-              <label>
-                视觉类型
-                <select
-                  value={activeSlide.visual}
-                  onChange={(event) => updateSlide(activeSlide.id, { visual: event.target.value as SlideVisual })}
-                >
-                  <option value="kpi">{visualLabels.kpi}</option>
-                  <option value="combo">{visualLabels.combo}</option>
-                  <option value="line">{visualLabels.line}</option>
-                  <option value="table">{visualLabels.table}</option>
-                </select>
-              </label>
-              <label>
-                品牌主色
-                <input type="color" value={designControls.accent} onChange={(event) => updateControl('accent', event.target.value)} />
-              </label>
-              <label>
-                背景色
-                <input type="color" value={designControls.background} onChange={(event) => updateControl('background', event.target.value)} />
-              </label>
-              <label>
-                圆角 {designControls.radius}px
-                <input
-                  type="range"
-                  min="0"
-                  max="28"
-                  value={designControls.radius}
-                  onChange={(event) => updateControl('radius', Number(event.target.value))}
-                />
-              </label>
-              <label>
-                信息密度
-                <select
-                  value={designControls.density}
-                  onChange={(event) => updateControl('density', event.target.value as DesignControls['density'])}
-                >
-                  <option value="executive">高管汇报</option>
-                  <option value="analytical">分析明细</option>
-                  <option value="board">董事会</option>
-                </select>
-              </label>
-              <label>
-                动效强度
-                <select value={designControls.motion} onChange={(event) => updateControl('motion', event.target.value as DesignControls['motion'])}>
-                  <option value="none">无动效</option>
-                  <option value="subtle">克制动效</option>
-                  <option value="cinematic">演示级动效</option>
-                </select>
-              </label>
-            </section>
-          )}
-
-          {agentTab === 'comment' && (
-            <section className="agent-section comment-section">
-              <div className="comment-compose">
-                <textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} rows={4} />
-                <button type="button" onClick={addComment}>
-                  提交批注
-                </button>
-              </div>
-              <div className="comment-list">
-                {comments.map((comment) => (
-                  <article className={comment.status === 'resolved' ? 'comment resolved' : 'comment'} key={comment.id}>
-                    <span>{comment.slideId} · {comment.target}</span>
-                    <p>{comment.request}</p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setComments((current) =>
-                          current.map((item) => (item.id === comment.id ? { ...item, status: item.status === 'open' ? 'resolved' : 'open' } : item)),
-                        )
-                      }
+              <div className="tweak-target">当前微调对象：{selectedTarget}</div>
+              {selectedTarget === '图表' && (
+                <>
+                  <label>
+                    视觉类型
+                    <select
+                      value={activeSlide.visual}
+                      onChange={(event) => updateSlide(activeSlide.id, { visual: event.target.value as SlideVisual })}
                     >
-                      {comment.status === 'open' ? '标记完成' : '重新打开'}
-                    </button>
-                  </article>
-                ))}
-              </div>
+                      <option value="kpi">{visualLabels.kpi}</option>
+                      <option value="combo">{visualLabels.combo}</option>
+                      <option value="line">{visualLabels.line}</option>
+                      <option value="table">{visualLabels.table}</option>
+                    </select>
+                  </label>
+                  <label>
+                    图表高度 {activeSlide.visualHeight}px
+                    <input
+                      type="range"
+                      min="180"
+                      max="420"
+                      value={activeSlide.visualHeight}
+                      onChange={(event) => updateSlide(activeSlide.id, { visualHeight: Number(event.target.value) })}
+                    />
+                  </label>
+                </>
+              )}
+              {selectedTarget === '标题' && (
+                <>
+                  <label>
+                    标题文本框宽度 {activeSlide.titleWidth}%
+                    <input
+                      type="range"
+                      min="35"
+                      max="100"
+                      value={activeSlide.titleWidth}
+                      onChange={(event) => updateSlide(activeSlide.id, { titleWidth: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    标题字号 {activeSlide.titleSize}px
+                    <input
+                      type="range"
+                      min="24"
+                      max="82"
+                      value={activeSlide.titleSize}
+                      onChange={(event) => updateSlide(activeSlide.id, { titleSize: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    标题换行
+                    <select value={activeSlide.titleWrap} onChange={(event) => updateSlide(activeSlide.id, { titleWrap: event.target.value as Slide['titleWrap'] })}>
+                      <option value="wrap">允许换行</option>
+                      <option value="nowrap">保持单行</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              {selectedTarget === '正文' && (
+                <>
+                  <label>
+                    正文文本框宽度 {activeSlide.bodyWidth}%
+                    <input
+                      type="range"
+                      min="35"
+                      max="100"
+                      value={activeSlide.bodyWidth}
+                      onChange={(event) => updateSlide(activeSlide.id, { bodyWidth: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    正文字号 {activeSlide.bodySize}px
+                    <input
+                      type="range"
+                      min="14"
+                      max="32"
+                      value={activeSlide.bodySize}
+                      onChange={(event) => updateSlide(activeSlide.id, { bodySize: Number(event.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    正文换行
+                    <select value={activeSlide.bodyWrap} onChange={(event) => updateSlide(activeSlide.id, { bodyWrap: event.target.value as Slide['bodyWrap'] })}>
+                      <option value="wrap">允许换行</option>
+                      <option value="nowrap">保持单行</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              {selectedTarget === '整页' && (
+                <>
+                  <label>
+                    品牌主色
+                    <input type="color" value={designControls.accent} onChange={(event) => updateControl('accent', event.target.value)} />
+                  </label>
+                  <label>
+                    背景色
+                    <input type="color" value={designControls.background} onChange={(event) => updateControl('background', event.target.value)} />
+                  </label>
+                  <label>
+                    圆角 {designControls.radius}px
+                    <input
+                      type="range"
+                      min="0"
+                      max="28"
+                      value={designControls.radius}
+                      onChange={(event) => updateControl('radius', Number(event.target.value))}
+                    />
+                  </label>
+                  <label>
+                    信息密度
+                    <select
+                      value={designControls.density}
+                      onChange={(event) => updateControl('density', event.target.value as DesignControls['density'])}
+                    >
+                      <option value="executive">高管汇报</option>
+                      <option value="analytical">分析明细</option>
+                      <option value="board">董事会</option>
+                    </select>
+                  </label>
+                  <label>
+                    动效强度
+                    <select value={designControls.motion} onChange={(event) => updateControl('motion', event.target.value as DesignControls['motion'])}>
+                      <option value="none">无动效</option>
+                      <option value="subtle">克制动效</option>
+                      <option value="cinematic">演示级动效</option>
+                    </select>
+                  </label>
+                </>
+              )}
             </section>
           )}
 

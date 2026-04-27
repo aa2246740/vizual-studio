@@ -69,9 +69,9 @@ npm run build
 
 ## 内部 Agent 接入
 
-当前第一版内置浏览器协作桥，方便 Claude Code / Codex 这类 Agent 通过 Chrome DevTools 监听和处理批注：
+当前第一版内置浏览器协作桥，方便 Claude Code / Codex 这类 Agent 通过 Chrome DevTools 监听和处理用户提交给 Agent 的修改要求：
 
-- 用户在右侧「批注」里提交意见时，页面会触发 `vizual-studio:comment-added` 事件。
+- 用户在右侧「协作」里提交带对象定位的修改要求时，页面会触发 `vizual-studio:comment-added` 事件。
 - Agent 可读取 `window.VizualStudio.snapshot()` 获取当前 deck、选中对象、批注、版本和品牌风格。
 - Agent 可调用 `window.VizualStudio.applyAgentAction(...)` 写回修订，或调用 `window.VizualStudio.addAgentMessage(...)` 在对话区回复。
 
